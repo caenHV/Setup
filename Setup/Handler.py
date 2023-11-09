@@ -1,16 +1,15 @@
-from cgitb import handler
 from datetime import datetime, timedelta
 from typing import ClassVar
-from SetupDB import Channel, Board, SetupDB_manager
-from sqlalchemy import and_, delete, insert, or_, select, update
-from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
-from sqlalchemy.dialects.postgresql import Insert as psql_insert
-from board import FakeBoard as BoardCAEN
-# from .boardcaen import BoardCAEN
-
 from dataclasses import dataclass
 import json
 import pathlib
+
+from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
+
+from Setup.board import FakeBoard as BoardCAEN
+# from .boardcaen import BoardCAEN
+from Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
 class Board_info:

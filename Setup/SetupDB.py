@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+
 from sqlalchemy import create_engine, ForeignKey
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapped, mapped_column, relationship

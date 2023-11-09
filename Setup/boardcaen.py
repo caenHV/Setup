@@ -1,4 +1,4 @@
-from typing import Dict, List, Union, Optional
+from typing import Dict, List
 import pycaenhv
 from pycaenhv.errors import CAENHVError
 from pycaenhv.enums import CAENHV_SYSTEM_TYPE, LinkType

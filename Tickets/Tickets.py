@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 
-import sys
-sys.path.append('C:/work/Science/BINP/Caen/controller/Monitor/setup/')
-from Handler import Handler
+from Setup.Handler import Handler
 from Tickets.TicketInfo import Ticket_info
 
 class Ticket(ABC):

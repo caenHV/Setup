@@ -2,11 +2,6 @@ import json
 from typing import Any, Type
 from Tickets.Tickets import Ticket
 from Tickets.TicketType import TicketType
-
-# from Tickets import Ticket
-# import Tickets
-# from TicketType import TicketType
-
     
 class TicketMaster:
     @staticmethod
