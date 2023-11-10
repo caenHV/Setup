@@ -30,6 +30,11 @@ class TicketMaster:
         
         if type(data['params']) is not dict:
             raise KeyError("'params' field  in the passed json_string is not of type dict")
-                    
+        
+        if not ticket_type.value.params_keys.issubset(data['params'].keys()):
+            return False
+        
+        
+                   
         return True
     
