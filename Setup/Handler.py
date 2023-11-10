@@ -29,7 +29,11 @@ class Board_info:
             }
         }
         return res
-    
+    @classmethod
+    def from_db_object(cls, board: Board)->"Board_info":
+        b_info = cls(board_address = board.address, conet = board.conet, link = board.link, handler = board.handler)
+        return b_info
+        
     @classmethod
     def from_json(cls, path: str):
         filepath = pathlib.Path(path)
@@ -62,8 +66,14 @@ class Board_info:
 class Channel_info:
     board_info: Board_info
     channel_num: int
+    layer: int | None = None
     par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
-
+    
+    @classmethod
+    def from_db_object(cls, channel: Channel, board: Board)->"Channel_info":
+        ch_info = cls(board_info = Board_info.from_db_object(board), channel_num = channel.channel, layer = channel.layer)
+        return ch_info
+    
 class Handler:
     def __init__(self, config_path: str, refresh_time: int = 10):
         """
@@ -75,24 +85,23 @@ class Handler:
             the time limit in seconds when database data is considered as fresh
         """
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.parnames = ["Pw", "VSet", "VMon", "ISet", "Imon", "RUp", "RDWn", "Temp"]
         self.db_manager = SetupDB_manager()
         boards = Board_info.from_json(config_path)
-        self.initialize_boards(config = boards)
+        self.__initialize_boards(config = boards)
         
 
     def __del__(self):
-        self.deinitialize_boards()
+        self.__deinitialize_boards()
 
     
-    def initialize_boards(self, config: list[Board_info]):
+    def __initialize_boards(self, config: list[Board_info]):
         """Inits available in DB boards and fills actual information"""
-        boards = self.get_boards()
+        boards = self.__get_boards()
         config_board_addresses = [b.board_address for b in config]
         for board in boards:
             board_address, conet, link, _ = board.tuple()
             if board_address not in config_board_addresses:
-                self.remove_board(board)
+                self.__remove_board(board)
                 print(board_address)
                 continue
             handler = BoardCAEN.initialize(board_address, conet=conet, link=link)
@@ -102,15 +111,15 @@ class Handler:
         
         for b in config:
             try:
-                self.add_board(b)
+                self.__add_board(b)
                 print('add_board')
             except ValueError:
                 continue
         self.__remove_none_boards()
             
-    def deinitialize_boards(self) -> None:
+    def __deinitialize_boards(self) -> None:
         """Deinits working boards"""
-        boards = self.get_boards()
+        boards = self.__get_boards()
         for board in boards:
             if board.handler is not None:
                 BoardCAEN.deinitialize(board.handler)
@@ -118,7 +127,7 @@ class Handler:
                 self.__fill_board_handler(board)
         return
     
-    def get_boards(self) -> list[Board_info]:
+    def __get_boards(self) -> list[Board_info]:
         """Returns a list of available boards
 
         Returns
@@ -134,7 +143,7 @@ class Handler:
                                               Board.handler)).all()
         return [Board_info(*ch.tuple()) for ch in boards]
     
-    def get_board_handler(self, board: Board_info) -> int | None:
+    def __get_board_handler(self, board: Board_info) -> int | None:
         """Returns handler corresponding to the board
         Returns
         -------
@@ -154,9 +163,9 @@ class Handler:
                 return None
         return handler.tuple()[-1]
             
-    def add_board(self, info: Board_info)->int:
+    def __add_board(self, info: Board_info)->int:
         """Adds a board in the database and inits it"""
-        if self.get_board_handler(info) is not None:
+        if self.__get_board_handler(info) is not None:
             raise ValueError("This board already exists.")
 
         info.handler = BoardCAEN.initialize(info.board_address, conet=info.conet, link=info.link)
@@ -165,11 +174,8 @@ class Handler:
         self.__reserve_board_channels(info, nchannels)
         return info.handler
     
-    def remove_board(self, board: Board_info)->None:
+    def __remove_board(self, board: Board_info)->None:
         """Removes a board from the database and turns off it"""
-        # ??: Why do we have it here???
-        # if self.get_board_handler(board) is None:
-        #     raise ValueError("This board does not exists already.")
         board.handler = None
         self.__fill_board_handler(board)
         self.__remove_none_boards()
@@ -228,13 +234,7 @@ class Handler:
         with self.db_manager.get_session() as session:
             query_res = session.execute(stmt).all()
         query_res = [res._asdict() for res in query_res]
-        return query_res
-    
-    def update_channel(
-        self, board_address: str, conet: int, link: int, channel: int
-    )->None:
-        pass
-    
+        return query_res    
     
     def __reserve_board_channels(
         self, board_info: Board_info, nchannels: int
@@ -297,18 +297,25 @@ class Handler:
             session.execute(stmt)
             session.commit()
 
-    def __get_parameters(self, channel: Channel_info) -> list[str | float | int | datetime | None] | None:
+    def __get_parameters(self, channel: Channel_info) -> dict[str, str | float | int | datetime | None] | None:
         data = self.__get_channel(channel)
         if data is None:
             return None
+        ch: Channel = data['Channel'] # type: ignore
+        board: Board = data['Board'] # type: ignore
+        if data is None:
+            return None
         
-        if (data["last_update"] is None or datetime.now() - data["last_update"] > self.refresh_time): # type: ignore
-            params = BoardCAEN.get_parameters(data["handler"], [channel.channel_num], list(Channel_info.par_names)) # type: ignore
+        if (ch["last_update"] is None or datetime.now() - ch["last_update"] > self.refresh_time): # type: ignore
+            params = BoardCAEN.get_parameters(board["handler"], [channel.channel_num], list(Channel_info.par_names)) # type: ignore
             self.__update_parameters(channel, params[channel.channel_num])
+            
             data = self.__get_channel(channel)
             if data is None:
                 return None
-        return [data['Channel'].__getattribute__(par) for par in Channel_info.par_names]
+            ch: Channel = data['Channel'] # type: ignore
+            
+        return {par : ch.__getattribute__(par) for par in Channel_info.par_names}
 
     def __update_parameters(self, channel: Channel_info, params: dict[str, float]) -> None:
         """Updates parameters from `params` dictionary in the database"""
@@ -328,7 +335,7 @@ class Handler:
         with self.db_manager.get_session() as session:
             session.execute(stmt)
         
-    def set_parameters(self, channel: Channel_info, params_dict: dict[str, float]) -> bool:
+    def __set_parameters(self, channel: Channel_info, params_dict: dict[str, float]) -> bool:
         """Sets parameters from `params_dict` to CAEN and updates database information"""
         data = self.__get_channel(channel)
         if data is None:
@@ -344,8 +351,8 @@ class Handler:
         return True
     
     def set_voltage(self, layer: int | None, voltage: float)->None:
-        if voltage < 0 or voltage > 1e4:
-            raise ValueError("Voltage is either less than zero or bigger than 10'000")
+        if voltage < 0 or voltage > 3e3:
+            raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
         
         if layer is None:
             channels = self.__get_channels()
@@ -356,8 +363,8 @@ class Handler:
             return 
         
         for ch in channels:
-            channel_info = Channel_info(Board_info(ch['Board'].address, ch['Board'].conet, ch['Board'].link, ch['Board'].handler), ch['Channel'].channel)  # type: ignore
-            self.set_parameters(channel_info, {'VSet' : voltage})
+            channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
+            self.__set_parameters(channel_info, {'VSet' : voltage})
     
     def pw_down(self, layer: int | None)->None:
         if layer is None:
@@ -369,7 +376,27 @@ class Handler:
             return 
         
         for ch in channels:
-            channel_info = Channel_info(Board_info(ch['Board'].address, ch['Board'].conet, ch['Board'].link, ch['Board'].handler), ch['Channel'].channel)  # type: ignore
-            # ??: Type of 'Pw' param?
-            self.set_parameters(channel_info, {'Pw' : 0})
+            channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
+            self.__set_parameters(channel_info, {'Pw' : 0})
     
+    def get_params(self, layer: int | None, params: set[str] | None)->dict[Channel_info, dict | None]:
+        requested_params: set[str] = set(Channel_info.par_names)
+        if params is not None:
+            requested_params: set[str] = params.intersection(Channel_info.par_names)
+        
+        query = select(Channel, Board).join(Board)
+        if layer is not None:
+            query = query.where(Channel.layer == layer)
+                
+        with self.db_manager.get_session() as session:
+            channels = [row._asdict() for row in session.execute(query).all()]
+        channels = [Channel_info.from_db_object(channel = ch['Channel'], board = ch['Board']) for ch in channels]
+        
+        def select_requested(params: set[str], ch: Channel_info)->dict | None:
+            results = self.__get_parameters(ch)
+            if results is None:
+                return None
+            return {name : val for name, val in results.items() if name in params}
+            
+        res: dict[Channel_info, dict | None] = {ch : select_requested(requested_params, ch) for ch in channels}
+        return res        
