@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+import json
 
-from Setup.Handler import Handler
+from Setup.Handler import Channel_info, Handler
 from Tickets.TicketInfo import Ticket_info, Ticket_Type_info
 
 class Ticket(ABC):
@@ -71,9 +72,14 @@ class GetParams_Ticket(Ticket):
         if not self.params_keys.issubset(params.keys()):
             raise KeyError(f"Passed params dict doesn't contain all required fields ({self.params_keys})")
     
-    def execute(self, handler: Handler):
-        res = handler.get_params(None, None)
-        # TODO: Prepare the return value.
+    def execute(self, handler: Handler) -> str:
+        ch_params = handler.get_params(None, None)
+        
+        def get_key(ch_info: Channel_info)->str:
+            return f"{ch_info.board_info.board_address}_{ch_info.board_info.link}_{ch_info.board_info.conet}_{ch_info.channel_num}"
+            
+        res = {get_key(ch) : {} if pars is None else pars  for ch, pars in ch_params.items()}
+        return json.dumps(res)
         
     @property
     def type_description(self)->Ticket_Type_info:
@@ -82,4 +88,4 @@ class GetParams_Ticket(Ticket):
     @property
     def description(self) -> Ticket_info:
         return Ticket_info(name='GetParams', args={})
-    
+        
