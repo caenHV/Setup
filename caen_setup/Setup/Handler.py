@@ -7,9 +7,9 @@ import pathlib
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 
-from Setup.board import FakeBoard as BoardCAEN
+from caen_setup.Setup.board import FakeBoard as BoardCAEN
 # from .boardcaen import BoardCAEN
-from Setup.SetupDB import Channel, Board, SetupDB_manager
+from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
 class Board_info:

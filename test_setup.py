@@ -1,4 +1,4 @@
-from Setup.Handler import Handler
+from caen_setup import Handler
 
 
 h = Handler('test_config.json', dev_mode=True)
