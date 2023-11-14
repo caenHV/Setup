@@ -41,10 +41,15 @@ class Channel(Base):
     board: Mapped["Board"] = relationship(back_populates="channels")
 
 class SetupDB_manager:
-    def __init__(self, drivername: str ="postgresql+psycopg2", username: str ="postgres", password: str ="qwerty", database: str="caen_handler"):
-        self.__engine = create_engine(f"{drivername}://{username}:{password}@localhost/{database}")
+    def __init__(self, dbpath: str):
+        self.__engine = create_engine(dbpath)
         connection = self.__engine.connect()
         Base.metadata.create_all(self.__engine)
+
+    @classmethod
+    def from_args(cls, drivername: str ="postgresql+psycopg2", username: str ="postgres", password: str ="qwerty", database: str="caen_handler"):
+        dbpath = f"{drivername}://{username}:{password}@localhost/{database}"
+        return cls(dbpath)
 
     def get_session(self):
         Session = sessionmaker(bind=self.__engine)
