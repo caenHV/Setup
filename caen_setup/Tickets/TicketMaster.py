@@ -1,7 +1,7 @@
 import json
 from typing import Any, Type
-from Tickets.Tickets import Ticket
-from Tickets.TicketType import TicketType
+from caen_setup.Tickets.Tickets import Ticket
+from caen_setup.Tickets.TicketType import TicketType
     
 class TicketMaster:
     @staticmethod

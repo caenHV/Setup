@@ -1,5 +1,5 @@
 import json
-from Tickets.TicketMaster import TicketMaster
+from caen_setup.Tickets.TicketMaster import TicketMaster
 
 data = json.dumps({
     'name' : 'Down', 

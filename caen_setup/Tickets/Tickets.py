@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import json
 
-from Setup.Handler import Channel_info, Handler
-from Tickets.TicketInfo import Ticket_info, Ticket_Type_info
+from caen_setup.Setup.Handler import Channel_info, Handler
+from caen_setup.Tickets.TicketInfo import Ticket_info, Ticket_Type_info
 
 class Ticket(ABC):
     @abstractmethod

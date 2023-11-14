@@ -7,9 +7,9 @@ import pathlib
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 
-from Setup.board import FakeBoard as BoardCAEN
+from caen_setup.Setup.board import FakeBoard as BoardCAEN
 # from .boardcaen import BoardCAEN
-from Setup.SetupDB import Channel, Board, SetupDB_manager
+from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
 class Board_info:
@@ -75,7 +75,7 @@ class Channel_info:
         return ch_info
     
 class Handler:
-    def __init__(self, config_path: str, refresh_time: int = 10):
+    def __init__(self, config_path: str, refresh_time: int = 10, dev_mode: bool = False):
         """
         Parameters
         ----------
@@ -83,9 +83,11 @@ class Handler:
             path to database
         refresh_time: int
             the time limit in seconds when database data is considered as fresh
+        dev_mode: bool
+            developing mode: using of sqlite in memory cache database (default False)
         """
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.db_manager = SetupDB_manager()
+        self.db_manager = SetupDB_manager("sqlite://") if dev_mode else SetupDB_manager.from_args()
         boards = Board_info.from_json(config_path)
         self.__initialize_boards(config = boards)
         
@@ -112,7 +114,7 @@ class Handler:
         for b in config:
             try:
                 self.__add_board(b)
-                print('add_board')
+                # print('add_board')
             except ValueError:
                 continue
         self.__remove_none_boards()
