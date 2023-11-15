@@ -12,11 +12,20 @@ from caen_setup.Setup.board import FakeBoard as BoardCAEN
 from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
-class Board_info:
+class _Channel_LayerPair:
+    channel: int
+    layer: int | None = None 
+        
+@dataclass
+class Board_info:    
     board_address: str
     conet: int
     link: int
     handler: int | None = None
+    channels: list[_Channel_LayerPair] | None = None
+    """list[Channel_LayerPair[channel_num, channel_layer]]
+    """
+    
     
     def tuple(self)->tuple[str, int, int, int | None]:
         return (self.board_address, self.conet, self.link, self.handler)
@@ -26,12 +35,13 @@ class Board_info:
             self.board_address : {
                 "conet" : self.conet,
                 "link" : self.link
+                # TODO: add "channels_by_layer"
             }
         }
         return res
     @classmethod
     def from_db_object(cls, board: Board)->"Board_info":
-        b_info = cls(board_address = board.address, conet = board.conet, link = board.link, handler = board.handler)
+        b_info = cls(board_address = board.address, conet = board.conet, link = board.link, handler = board.handler, channels = [_Channel_LayerPair(channel=ch.channel, layer=ch.layer) for ch in board.channels])
         return b_info
         
     @classmethod
@@ -44,22 +54,33 @@ class Board_info:
             raise ValueError("Path %s doesn't point to .json file.", path)
         
         with open(filepath) as f:
-            data: dict[str, dict[str, int]] = json.load(f)
+            data: dict[str, dict[str, int | dict[str, list[int]]]] = json.load(f)
             
-        if type(data) is not dict:
+        if (
+            type(data) is not dict or 
+            not all([set(['conet', 'link', 'channels_by_layer']).issubset(info.keys()) for _, info in data.items()])
+        ):
             e = ValueError("Config file is wrong.")
             e.add_note("""Make sure that config file is formatted as json dict:
                         {
                             "some_board_address" : {
                                 "conet" : conet_num,
                                 "link" : link_num
+                                "channels_by_layer" : {
+                                    "*layer_num*" : [*ch_nums*]
+                                }
                             }
                         }""")
             raise e
-                
-        res = [cls(board_address=b_address, conet=info['conet'], link=info['link'], handler=None) 
-               for b_address, info in data.items() 
-               if set(['conet', 'link']).issubset(info.keys())]
+        
+        def get_channels(channels_by_layer: dict[str, list[int]])->list[_Channel_LayerPair]:
+            channels = []
+            for layer, chs in channels_by_layer.items():
+                channels.extend([_Channel_LayerPair(channel=ch, layer=int(layer)) for ch in chs])
+            return channels
+        
+        res = [cls(board_address=b_address, conet=info['conet'], link=info['link'], handler=None, channels = get_channels(info['channels_by_layer']))  # type: ignore
+               for b_address, info in data.items()]
         return res
     
 @dataclass
@@ -89,12 +110,12 @@ class Handler:
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
         self.db_manager = SetupDB_manager("sqlite://") if dev_mode else SetupDB_manager.from_args()
         boards = Board_info.from_json(config_path)
+        self.__remove_DB_records()
         self.__initialize_boards(config = boards)
         
 
     def __del__(self):
         self.__deinitialize_boards()
-
     
     def __initialize_boards(self, config: list[Board_info]):
         """Inits available in DB boards and fills actual information"""
@@ -104,19 +125,13 @@ class Handler:
             board_address, conet, link, _ = board.tuple()
             if board_address not in config_board_addresses:
                 self.__remove_board(board)
-                print(board_address)
                 continue
-            handler = BoardCAEN.initialize(board_address, conet=conet, link=link)
-            nchannels = BoardCAEN.nchannels(handler)
-            self.__reserve_board_channels(Board_info(board_address=board_address, conet=conet, link=link), nchannels)
-            self.__fill_board_handler(Board_info(board_address, conet, link, handler))
-        
+            board.handler = BoardCAEN.initialize(board_address, conet=conet, link=link)
+            self.__reserve_board_channels(board)
+            self.__fill_board_handler(board)
+
         for b in config:
-            try:
-                self.__add_board(b)
-                # print('add_board')
-            except ValueError:
-                continue
+            self.__add_board(b)
         self.__remove_none_boards()
             
     def __deinitialize_boards(self) -> None:
@@ -127,23 +142,77 @@ class Handler:
                 BoardCAEN.deinitialize(board.handler)
                 board.handler = None
                 self.__fill_board_handler(board)
+                # self.__remove_DB_records()
         return
     
+    def __add_board(self, info: Board_info)->int:
+        """Adds a board in the database and inits it"""
+        if self.__get_board_handler(info) is not None:
+            raise ValueError("This board already exists.")
+
+        info.handler = BoardCAEN.initialize(info.board_address, conet=info.conet, link=info.link)
+        self.__fill_board_handler(info)
+        self.__reserve_board_channels(info)
+        return info.handler
+
+    def __reserve_board_channels(
+        self, board_info: Board_info
+    ) -> bool:
+        """Reserves rows for all channels in the board's config"""
+        with self.db_manager.get_session() as session:
+            # Drop all channels.
+            drop_stmt = delete(Channel).where(Channel.board_address == board_info.board_address)
+            session.execute(drop_stmt)
+            session.commit()
+            
+            if board_info.channels is  None:
+                raise ValueError('board_info does not store information about channels.')
+            data = [Channel(
+                channel = ch.channel,
+                layer = ch.layer,
+                board_address = board_info.board_address
+                ) for ch in board_info.channels]
+            
+            try:
+                for ch in data:
+                    session.merge(ch)
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+        return True   
+
+    def __fill_board_handler(self, board: Board_info) -> None:
+        """Fills handler for the board"""
+        with self.db_manager.get_session() as session:           
+            try:
+                session.merge(Board(address=board.board_address, conet=board.conet, link=board.link, handler=board.handler))
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                
+        with self.db_manager.get_session() as session:
+                stmt = (
+                    update(Board)
+                    .where(Board.address == board.board_address)
+                    .values(address=board.board_address,
+                            conet=board.conet,
+                            link=board.link,
+                            handler=board.handler)
+                )
+                session.execute(stmt)
+                session.commit()
+
     def __get_boards(self) -> list[Board_info]:
         """Returns a list of available boards
 
         Returns
         -------
-        List[Tuple[str, int, int, Optional[int]]]
-            a list of all available boards
-            (board_address, conet, link, handler)
+        List[Board_info]
         """
         with self.db_manager.get_session() as session:
-            boards = session.execute(select(Board.address, 
-                                              Board.conet, 
-                                              Board.link, 
-                                              Board.handler)).all()
-        return [Board_info(*ch.tuple()) for ch in boards]
+            boards = session.execute(select(Board)).all()
+            bs = [Board_info.from_db_object(b.tuple()[-1]) for b in boards]
+        return bs
     
     def __get_board_handler(self, board: Board_info) -> int | None:
         """Returns handler corresponding to the board
@@ -163,26 +232,8 @@ class Handler:
             except (MultipleResultsFound, NoResultFound) as e:
                 # TODO: Log me!
                 return None
-        return handler.tuple()[-1]
+        return handler.tuple()[-1]    
             
-    def __add_board(self, info: Board_info)->int:
-        """Adds a board in the database and inits it"""
-        if self.__get_board_handler(info) is not None:
-            raise ValueError("This board already exists.")
-
-        info.handler = BoardCAEN.initialize(info.board_address, conet=info.conet, link=info.link)
-        nchannels = BoardCAEN.nchannels(info.handler)
-        self.__fill_board_handler(info)
-        self.__reserve_board_channels(info, nchannels)
-        return info.handler
-    
-    def __remove_board(self, board: Board_info)->None:
-        """Removes a board from the database and turns off it"""
-        board.handler = None
-        self.__fill_board_handler(board)
-        self.__remove_none_boards()
-        return
-
     def __get_channels(self, channel: Channel_info | None = None)->list[dict[str, Channel | Board]] | None:
         """Returns a list of available channels in the corresponding board. 
         If board_info is None returns a list of all available channels.
@@ -238,61 +289,21 @@ class Handler:
         query_res = [res._asdict() for res in query_res]
         return query_res    
     
-    def __reserve_board_channels(
-        self, board_info: Board_info, nchannels: int
-    ) -> bool:
-        """Reserves rows for all available channels in the board"""
-        with self.db_manager.get_session() as session:
-            try:
-                board = session.scalar(select(Board).where(Board.address == board_info.board_address))
-                if board is not None:
-                    # Drop all extra channels and orphans.
-                    drop_stmt = delete(Channel).where(or_(
-                        and_(Channel.board_address == board.address, Channel.channel >= nchannels),
-                        Channel.board_address.is_(None)
-                        ))
-                    session.execute(drop_stmt)
-                    session.commit()
-            except MultipleResultsFound as e:
-                # TODO: Log exception.
-                pass              
-             
-            # Insert or Ignore channels. 
-            data = [Channel(
-                channel = chidx,
-                board_address = board_info.board_address
-                ) for chidx in range(nchannels)]
-            
-            try:
-                for ch in data:
-                    session.merge(ch)
-                session.commit()
-            except IntegrityError:
-                session.rollback()
-        return True   
-
-    def __fill_board_handler(self, board: Board_info) -> None:
-        """Fills handler for the board"""
-        with self.db_manager.get_session() as session:           
-            try:
-                session.merge(Board(address=board.board_address, conet=board.conet, link=board.link, handler=board.handler))
-                session.commit()
-            except IntegrityError:
-                session.rollback()
-                
-        with self.db_manager.get_session() as session:
-                stmt = (
-                    update(Board)
-                    .where(Board.address == board.board_address)
-                    .values(address=board.board_address,
-                            conet=board.conet,
-                            link=board.link,
-                            handler=board.handler)
-                )
-                session.execute(stmt)
-                session.commit()
+    def __remove_board(self, board: Board_info)->None:
+        """Removes a board from the database and turns off it"""
+        board.handler = None
+        self.__fill_board_handler(board)
+        self.__remove_none_boards()
+        return
     
-
+    def __remove_DB_records(self)->None:
+        with self.db_manager.get_session() as session:
+            stmt = delete(Board)
+            session.execute(stmt)
+            stmt = delete(Channel)
+            session.execute(stmt)
+            session.commit()
+            
     def __remove_none_boards(self) -> None:
         with self.db_manager.get_session() as session:
             stmt = delete(Board).where(Board.handler.is_(None))
@@ -308,8 +319,8 @@ class Handler:
         if data is None:
             return None
         
-        if (ch["last_update"] is None or datetime.now() - ch["last_update"] > self.refresh_time): # type: ignore
-            params = BoardCAEN.get_parameters(board["handler"], [channel.channel_num], list(Channel_info.par_names)) # type: ignore
+        if (ch.last_update is None or datetime.now() - ch.last_update > self.refresh_time): # type: ignore
+            params = BoardCAEN.get_parameters(board.handler, [channel.channel_num], list(Channel_info.par_names)) # type: ignore
             self.__update_parameters(channel, params[channel.channel_num])
             
             data = self.__get_channel(channel)
@@ -327,15 +338,15 @@ class Handler:
             update(Channel)
             .where(and_(
                 Channel.channel == channel.channel_num,
-                Channel.board.address == channel.board_info.board_address,
-                Channel.board.conet == channel.board_info.conet,
-                Channel.board.link == channel.board_info.link
+                Channel.board_address == channel.board_info.board_address,
                 )
             )
             .values(**update_data)
         )
+        # print(stmt)
         with self.db_manager.get_session() as session:
             session.execute(stmt)
+            session.commit()
         
     def __set_parameters(self, channel: Channel_info, params_dict: dict[str, float]) -> bool:
         """Sets parameters from `params_dict` to CAEN and updates database information"""
@@ -343,12 +354,11 @@ class Handler:
         if data is None:
             return False
         try:
-            BoardCAEN.set_parameters(data["handler"], [channel.channel_num], params_dict) # type: ignore
-            params = BoardCAEN.get_parameters(data["handler"], [channel.channel_num], Channel_info.par_names) # type: ignore
+            BoardCAEN.set_parameters(data['Board'].handler, [channel.channel_num], params_dict) # type: ignore
+            params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
         except:
             # TODO: Log about troubles.
             return False
-        
         self.__update_parameters(channel, params[channel.channel_num])
         return True
     
@@ -399,6 +409,8 @@ class Handler:
             if results is None:
                 return None
             return {name : val for name, val in results.items() if name in params}
-            
+        
+        # FIXME: Channel_info is not hashable.
         res: dict[Channel_info, dict | None] = {ch : select_requested(requested_params, ch) for ch in channels}
-        return res        
+        return res
+    

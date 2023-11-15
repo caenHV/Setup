@@ -16,7 +16,7 @@ class Board(Base):
     link: Mapped[int]
     handler: Mapped[Optional[int]]
 
-    channels: Mapped[list["Channel"]] = relationship(back_populates="board", cascade="all, delete-orphan", single_parent=True, passive_deletes=True)
+    channels: Mapped[list["Channel"]] = relationship(back_populates="board", cascade="all, delete-orphan", single_parent=True, passive_deletes=True, lazy="selectin")
     
 class Channel(Base):
     __tablename__ = "channels"
