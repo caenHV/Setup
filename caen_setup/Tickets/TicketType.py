@@ -9,7 +9,6 @@ class TicketType(Enum):
     Down = Tickets.Down_Ticket
     GetParams = Tickets.GetParams_Ticket
 
-    @property
     @classmethod
     def names(cls) -> set[str]:
-        return {tk_type.name for tk_type in cls}
+        return {tk_type.value.type_description().name for tk_type in cls}

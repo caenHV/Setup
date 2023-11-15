@@ -13,9 +13,9 @@ class Ticket(ABC):
     def execute(self, handler: Handler):
         pass
     
-    @property
+    @staticmethod
     @abstractmethod
-    def type_description(self)->Ticket_Type_info:
+    def type_description()->Ticket_Type_info:
         pass
     
     @property
@@ -31,8 +31,8 @@ class Down_Ticket(Ticket):
     def execute(self, handler: Handler):
         handler.pw_down(None)
         
-    @property
-    def type_description(self)->Ticket_Type_info:
+    @staticmethod
+    def type_description()->Ticket_Type_info:
         return Ticket_Type_info(name='Down', args={})
 
     @property
@@ -50,8 +50,8 @@ class SetVoltage_Ticket(Ticket):
     def execute(self, handler: Handler):
         handler.set_voltage(None, self.__target)
         
-    @property
-    def type_description(self)->Ticket_Type_info:
+    @staticmethod
+    def type_description()->Ticket_Type_info:
         return Ticket_Type_info(
             name='SetVoltage', 
             args={'target_voltage' : {
@@ -81,8 +81,8 @@ class GetParams_Ticket(Ticket):
         res = {get_key(ch) : {} if pars is None else pars  for ch, pars in ch_params.items()}
         return json.dumps(res)
         
-    @property
-    def type_description(self)->Ticket_Type_info:
+    @staticmethod
+    def type_description()->Ticket_Type_info:
         return Ticket_Type_info(name='GetParams', args={})
     
     @property
