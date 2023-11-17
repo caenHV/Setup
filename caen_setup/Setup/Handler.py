@@ -39,6 +39,7 @@ class Board_info:
             }
         }
         return res
+    
     @classmethod
     def from_db_object(cls, board: Board)->"Board_info":
         b_info = cls(board_address = board.address, conet = board.conet, link = board.link, handler = board.handler, channels = [_Channel_LayerPair(channel=ch.channel, layer=ch.layer) for ch in board.channels])
@@ -94,6 +95,16 @@ class Channel_info:
     def from_db_object(cls, channel: Channel, board: Board)->"Channel_info":
         ch_info = cls(board_info = Board_info.from_db_object(board), channel_num = channel.channel, layer = channel.layer)
         return ch_info
+    
+    @property
+    def json(self):
+        res_dict = {
+            "channel_num" : self.channel_num,
+            "layer" : self.layer,
+            "par_names" : self.par_names,
+            "board_info" : self.board_info.to_dict()
+        }
+        return json.dumps(res_dict)
     
 class Handler:
     def __init__(self, config_path: str, refresh_time: int = 10, dev_mode: bool = False):
@@ -391,7 +402,7 @@ class Handler:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             self.__set_parameters(channel_info, {'Pw' : 0})
     
-    def get_params(self, layer: int | None, params: set[str] | None)->dict[Channel_info, dict | None]:
+    def get_params(self, layer: int | None, params: set[str] | None)->dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)
         if params is not None:
             requested_params: set[str] = params.intersection(Channel_info.par_names)
@@ -410,7 +421,6 @@ class Handler:
                 return None
             return {name : val for name, val in results.items() if name in params}
         
-        # FIXME: Channel_info is not hashable.
-        res: dict[Channel_info, dict | None] = {ch : select_requested(requested_params, ch) for ch in channels}
+        res: dict[str, dict | None] = {ch.json : select_requested(requested_params, ch) for ch in channels}
         return res
     
