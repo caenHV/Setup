@@ -7,8 +7,8 @@ import pathlib
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 
-from caen_setup.Setup.board import FakeBoard as BoardCAEN
-# from .boardcaen import BoardCAEN
+# from caen_setup.Setup.board import FakeBoard as BoardCAEN
+from caen_setup.Setup.boardcaen import BoardCAEN
 from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
@@ -388,6 +388,8 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             self.__set_parameters(channel_info, {'VSet' : voltage})
+            # ??: Do we need to turn a board on be setting Pw = 1&?
+            self.pw_up(layer=layer)
     
     def pw_down(self, layer: int | None)->None:
         if layer is None:
@@ -401,6 +403,19 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             self.__set_parameters(channel_info, {'Pw' : 0})
+    
+    def pw_up(self, layer: int | None)->None:
+        if layer is None:
+            channels = self.__get_channels()
+        else:
+            channels = self.__get_channels_by_layer(layer)
+        
+        if channels is None: 
+            return 
+        
+        for ch in channels:
+            channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
+            self.__set_parameters(channel_info, {'Pw' : 1})
     
     def get_params(self, layer: int | None, params: set[str] | None)->dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)
