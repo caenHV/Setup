@@ -3,4 +3,5 @@ name="caen-setup"
 version="0.0.1"
 dependencies=[
     "SQLAlchemy",
+    "psycopg2-binary"
 ]
