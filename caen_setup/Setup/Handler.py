@@ -119,7 +119,7 @@ class Handler:
             developing mode: using of sqlite in memory cache database (default False)
         """
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.db_manager = SetupDB_manager("sqlite://") if dev_mode else SetupDB_manager.from_args()
+        self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite") if dev_mode else SetupDB_manager.from_args()
         boards = Board_info.from_json(config_path)
         self.__remove_DB_records()
         self.__initialize_boards(config = boards)
