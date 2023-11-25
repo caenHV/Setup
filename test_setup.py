@@ -1,22 +1,26 @@
 from caen_setup import Handler
 import time
+import json
 
 h = Handler('test_config.json', dev_mode=True)
+results: dict = dict()
 
 def test1(handler: Handler):
     """ Get params (check the connection).
     """
-    print(handler.get_params(None, None))
+    results['test1'] = handler.get_params(None, None)
+    print('test 1: query')
     return
 
 def test2(handler: Handler):
     """ Set voltage (500 V) -> Wait 2 minutes (query the setup every 15 sec) -> pw_down -> query
     """
-    handler.set_voltage(None, 1000)
-    print('1000 V voltage was set.')
+    handler.set_voltage(None, 500)
+    print('500 V voltage was set.')
     for i in range(8):
         time.sleep(15)
-        print(f'query after {(i + 1) * 15} sec:', handler.get_params(None, None))
+        results[f'test2_{(i + 1) * 15}_sec'] = handler.get_params(None, None)
+        print(f'test 2: query after {(i + 1) * 15} sec')
     handler.pw_down(None)
     print('Power was cut off.')
     print('final query:', handler.get_params(None, None))
@@ -29,9 +33,11 @@ def test3(handler: Handler):
     for volt in voltages:
         handler.set_voltage(None, volt)
         print(f'{volt} V voltage was set.')
-        print(f'query 1 for {volt} V:', handler.get_params(None, None))
+        print(f'test 3: query 1 for {volt} V')
+        results[f'test3_query_1_{volt}_V'] = handler.get_params(None, None)
         time.sleep(10)
-        print(f'query 2 for {volt} V:', handler.get_params(None, None))
+        print(f'test 3: query 2 for {volt} V')
+        results[f'test3_query_2_{volt}_V'] = handler.get_params(None, None)
     
     handler.pw_down(None)
     print('Power was cut off.')
@@ -45,8 +51,13 @@ def test4(handler: Handler):
     print('2000 V voltage was set.')
     for i in range(480):
         time.sleep(15)
-        print(f'query after {(i + 1) * 15} sec:', handler.get_params(None, None))
+        results[f'test4_{(i + 1) * 15}_sec'] = handler.get_params(None, None)
+        print(f'test 4: query after {(i + 1) * 15} sec')
     handler.pw_down(None)
     print('Power was cut off.')
     print('final query:', handler.get_params(None, None))
     return
+
+with open('res.json', 'w+') as f:
+    json.dump(results, f, indent=4)
+    
