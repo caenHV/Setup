@@ -373,7 +373,7 @@ class Handler:
         self.__update_parameters(channel, params[channel.channel_num])
         return True
     
-    def set_voltage(self, layer: int | None, voltage: float)->None:
+    def set_voltage(self, layer: int | None = None, voltage: float = 0.)->None:
         if voltage < 0 or voltage > 3e3:
             raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
         
@@ -391,7 +391,7 @@ class Handler:
             # ??: Do we need to turn a board on be setting Pw = 1&?
             self.pw_up(layer=layer)
     
-    def pw_down(self, layer: int | None)->None:
+    def pw_down(self, layer: int | None = None)->None:
         if layer is None:
             channels = self.__get_channels()
         else:
@@ -404,7 +404,7 @@ class Handler:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             self.__set_parameters(channel_info, {'Pw' : 0})
     
-    def pw_up(self, layer: int | None)->None:
+    def pw_up(self, layer: int | None = None)->None:
         if layer is None:
             channels = self.__get_channels()
         else:
@@ -417,7 +417,7 @@ class Handler:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             self.__set_parameters(channel_info, {'Pw' : 1})
     
-    def get_params(self, layer: int | None, params: set[str] | None)->dict[str, dict | None]:
+    def get_params(self, layer: int | None = None, params: set[str] | None = None)->dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)
         if params is not None:
             requested_params: set[str] = params.intersection(Channel_info.par_names)
