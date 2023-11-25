@@ -78,7 +78,7 @@ class GetParams_Ticket(Ticket):
         def get_key(ch_info: Channel_info)->str:
             return f"{ch_info.board_info.board_address}_{ch_info.board_info.link}_{ch_info.board_info.conet}_{ch_info.channel_num}"
             
-        res = {get_key(ch) : {} if pars is None else pars  for ch, pars in ch_params.items()}
+        res = {ch : {} if pars is None else pars  for ch, pars in ch_params.items()}
         return json.dumps(res)
         
     @staticmethod
