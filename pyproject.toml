@@ -1,7 +1,10 @@
 [project]
 name="caen-setup"
-version="0.0.1"
-dependencies=[
+version="0.0.2"
+
+[project.optional-dependencies]
+total = [
     "SQLAlchemy",
-    "psycopg2-binary"
+    "psycopg2-binary",
+    "pycaenhv @ git+https://github.com/vasoto/pycaenhv.git@538414a1babc82a381a6f0e11766ce402f9897b4"
 ]
