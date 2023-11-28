@@ -4,11 +4,11 @@ from dataclasses import dataclass
 import json
 import pathlib
 
-from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy import and_, delete, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 
-# from caen_setup.Setup.board import FakeBoard as BoardCAEN
-from caen_setup.Setup.boardcaen import BoardCAEN
+from caen_setup.Setup.board import FakeBoard as BoardCAEN
+# from caen_setup.Setup.boardcaen import BoardCAEN
 from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
