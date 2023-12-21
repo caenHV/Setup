@@ -14,7 +14,7 @@ class TicketMaster:
         data: dict[str, Any] = json.loads(json_string)
         name: str = data['name']
         tk_type = TicketType[name].value
-        tk: Ticket = tk_type(params = data['args'])
+        tk: Ticket = tk_type(params = data['params'])
         return tk
             
     
