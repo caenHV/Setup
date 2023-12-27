@@ -45,11 +45,11 @@ class Down_Ticket(Ticket):
         
     @staticmethod
     def type_description()->Ticket_Type_info:
-        return Ticket_Type_info(name='Down', args={})
+        return Ticket_Type_info(name='Down', params={})
 
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='Down', args={}) 
+        return Ticket_info(name='Down', params={}) 
     
 class SetVoltage_Ticket(Ticket):
     params_keys: set[str] = set({'target_voltage'})
@@ -78,7 +78,7 @@ class SetVoltage_Ticket(Ticket):
     def type_description()->Ticket_Type_info:
         return Ticket_Type_info(
             name='SetVoltage', 
-            args={'target_voltage' : {
+            params={'target_voltage' : {
                 'min_value' : 0, 
                 'max_value' : 2500,
                 'description' : 'Voltage to be set.'
@@ -87,7 +87,7 @@ class SetVoltage_Ticket(Ticket):
 
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='SetVoltage', args={'target_voltage' : self.__target})
+        return Ticket_info(name='SetVoltage', params={'target_voltage' : self.__target})
 
 class GetParams_Ticket(Ticket):
     params_keys: set[str] = set({})
@@ -118,9 +118,9 @@ class GetParams_Ticket(Ticket):
             
     @staticmethod
     def type_description()->Ticket_Type_info:
-        return Ticket_Type_info(name='GetParams', args={})
+        return Ticket_Type_info(name='GetParams', params={})
     
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='GetParams', args={})
+        return Ticket_info(name='GetParams', params={})
         
