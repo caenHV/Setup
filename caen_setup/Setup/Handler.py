@@ -342,12 +342,15 @@ class Handler:
 
     def __update_parameters(self, channel: Channel_info) -> None:
         """Updates parameters from `params` dictionary in the database"""
+        data = self.__get_channel(channel)
+        if data is None:
+            return None
         try:
             params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
         except:
             # TODO: Log about troubles.
             return
-        update_data: dict[str, float | datetime | str] = params # type: ignore
+        update_data: dict[str, float | datetime | str] = params[channel.channel_num] # type: ignore
         update_data["last_update"] = datetime.now()
         stmt = (
             update(Channel)
@@ -391,7 +394,6 @@ class Handler:
             self.__set_parameters(channel_info, [('VSet', voltage)])
             ch_info_list.append(channel_info)   
         self.pw_up(layer=layer)
-        list(map(self.__update_parameters, ch_info_list))
     
     def pw_down(self, layer: int | None = None)->None:
         if layer is None:
