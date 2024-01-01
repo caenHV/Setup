@@ -55,6 +55,7 @@ class Down_Ticket(Ticket):
     
     def execute(self, handler: Handler) -> str:
         try:
+            handler.set_voltage(None, 0)
             handler.pw_down(None)
             return json.dumps({
                 "status": True,
