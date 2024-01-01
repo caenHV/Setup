@@ -31,13 +31,18 @@ class Channel(Base):
     VMon: Mapped[Optional[float]]
     ISet: Mapped[Optional[float]]
     IMon: Mapped[Optional[float]]
+    ImonRange: Mapped[Optional[float]]
     ImonH: Mapped[Optional[float]]
     ImonL: Mapped[Optional[float]]
+    ChStatus: Mapped[Optional[float]]
+    Trip: Mapped[Optional[float]]
+    SVMax: Mapped[Optional[float]]
     
     RUp: Mapped[Optional[float]]
     RDWn: Mapped[Optional[float]]
+    PDwn: Mapped[Optional[float]]
     Temp: Mapped[Optional[float]]
-    
+    Polarity: Mapped[Optional[float]]
     
     board_address: Mapped[str] = mapped_column(ForeignKey("boards.address", ondelete='CASCADE'), primary_key=True)
     board: Mapped["Board"] = relationship(back_populates="channels")
