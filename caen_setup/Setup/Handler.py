@@ -392,7 +392,7 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('ImonRange', 1), ('RUp', 300), ('RDWn', 300), ('VSet', voltage)])
+            self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 300), ('RDWn', 300), ('VSet', voltage)])
             ch_info_list.append(channel_info)   
         self.pw_up(layer=layer)
     
