@@ -1,9 +1,34 @@
 from abc import ABC, abstractmethod
 import json
+import pathlib
 
 from caen_setup.Setup.Handler import Handler
 from caen_setup.Tickets.TicketInfo import Ticket_info, Ticket_Type_info
 
+default_voltages = {
+            "1" : 1880, 
+            "2" : 1880,
+            "3" : 2000,
+            "4" : 2000,
+            "5" : 2000,
+            "6" : 2000,
+            "7" : 2000,
+            "8" : 2000,
+            "9" : 2000,
+            "10" : 2000,
+            "11" : 2000,
+            "12" : 2000,
+            "13" : 2000,
+            "14" : 2000,
+            "15" : 2000,
+            "16" : 1970,
+            "17" : 1970,
+            "18" : 1900,
+            "19" : 1950,
+            "20" : 1550,
+            "21" : 1265
+        }
+        
 class Ticket(ABC):
     @abstractmethod
     def __init__(self, params: dict):
@@ -60,8 +85,10 @@ class SetVoltage_Ticket(Ticket):
         self.__target = float(params['target_voltage'])
     
     def execute(self, handler: Handler) -> str:
-        try:
-            handler.set_voltage(None, self.__target)
+        try:                
+            for layer, volt in default_voltages.items():
+                handler.set_voltage(int(layer), self.__target * volt)
+            # handler.set_voltage(None, self.__target)
             return json.dumps({
                 "status": True,
                 "body" : {}
@@ -123,4 +150,7 @@ class GetParams_Ticket(Ticket):
     @property
     def description(self) -> Ticket_info:
         return Ticket_info(name='GetParams', params={})
-        
+
+# class StepByStepRUp(Ticket):
+#     # TODO
+#     pass
