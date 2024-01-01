@@ -89,7 +89,8 @@ class Channel_info:
     board_info: Board_info
     channel_num: int
     layer: int | None = None
-    par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
+    # par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
+    par_names: ClassVar[tuple[str, ...]] = ('VSet', 'ISet', 'VMon', 'IMonH', 'Pw', 'ChStatus', 'Trip', 'SVMax', 'RDWn', 'RUp', 'PDwn', 'Polarity', 'Temp', 'ImonRange', 'IMonL')
     
     @classmethod
     def from_db_object(cls, channel: Channel, board: Board)->"Channel_info":
@@ -391,7 +392,7 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('RUp', 300), ('RDWn', 300), ('VSet', voltage)])
+            self.__set_parameters(channel_info, [('ImonRange', 1), ('RUp', 300), ('RDWn', 300), ('VSet', voltage)])
             ch_info_list.append(channel_info)   
         self.pw_up(layer=layer)
     
