@@ -89,7 +89,7 @@ class Channel_info:
     board_info: Board_info
     channel_num: int
     layer: int | None = None
-    par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon", "ImonH", "ImonL")
+    par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
     
     @classmethod
     def from_db_object(cls, channel: Channel, board: Board)->"Channel_info":
