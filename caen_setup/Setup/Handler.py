@@ -408,7 +408,7 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('Pw', 0)])
+            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0)])
             ch_info_list.append(channel_info)
         list(map(self.__update_parameters, ch_info_list))
     

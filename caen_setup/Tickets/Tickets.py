@@ -55,7 +55,6 @@ class Down_Ticket(Ticket):
     
     def execute(self, handler: Handler) -> str:
         try:
-            handler.set_voltage(None, 0)
             handler.pw_down(None)
             return json.dumps({
                 "status": True,
@@ -84,15 +83,11 @@ class SetVoltage_Ticket(Ticket):
         if not self.params_keys.issubset(params.keys()):
             raise KeyError(f"Passed params dict doesn't contain all required fields ({self.params_keys})")
         self.__target = float(params['target_voltage'])
-        self.__steps = int(10)
-        self.__steps_size = self.__target / self.__steps
     
     def execute(self, handler: Handler) -> str:
         try:                
-            for step_num in range(1, self.__steps):  
-                for layer, volt in default_voltages.items():
-                    handler.set_voltage(int(layer), self.__steps_size * step_num * volt)
-                time.sleep(10)
+            for layer, volt in default_voltages.items():
+                handler.set_voltage(int(layer), self.__target * volt)
                 
             return json.dumps({
                 "status": True,
