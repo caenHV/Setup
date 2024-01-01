@@ -125,6 +125,12 @@ class Handler:
         self.__remove_DB_records()
         self.__initialize_boards(config = boards)
         
+        chs = self.__get_channels()
+        if chs is not None:
+            for ch in chs:
+                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
+                self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 300), ('RDWn', 300)])
+        
 
     def __del__(self):
         self.__deinitialize_boards()
@@ -392,7 +398,7 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 1), ('RUp', 300), ('RDWn', 300), ('VSet', voltage)])
+            self.__set_parameters(channel_info, [('VSet', voltage)])
             ch_info_list.append(channel_info)   
         self.pw_up(layer=layer)
     
