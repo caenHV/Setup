@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import json
-import pathlib
+import time
 
 from caen_setup.Setup.Handler import Handler
 from caen_setup.Tickets.TicketInfo import Ticket_info, Ticket_Type_info
@@ -152,6 +152,51 @@ class GetParams_Ticket(Ticket):
     def description(self) -> Ticket_info:
         return Ticket_info(name='GetParams', params={})
 
-# class StepByStepRUp(Ticket):
-#     # TODO
-#     pass
+class StepByStepRUp_Ticket(Ticket):
+    params_keys: set[str] = set({'target_voltage', 'steps'})
+    
+    def __init__(self, params: dict):
+        if not self.params_keys.issubset(params.keys()):
+            raise KeyError(f"Passed params dict doesn't contain all required fields ({self.params_keys})")
+        self.__target = float(params['target_voltage'])
+        self.__steps = int(params['steps'])
+        self.__steps_size = self.__target / self.__steps
+    
+    def execute(self, handler: Handler) -> str:
+        try:     
+            for step_num in range(1, self.__steps):  
+                for layer, volt in default_voltages.items():
+                    handler.set_voltage(int(layer), self.__steps_size * step_num * volt)
+                time.sleep(10)
+                    
+            return json.dumps({
+                "status": True,
+                "body" : {}
+            })
+        except Exception as e:
+            return json.dumps({
+                "status": False,
+                "body" : {
+                    "error" : str(e) 
+                }
+            })
+        
+    @staticmethod
+    def type_description()->Ticket_Type_info:
+        return Ticket_Type_info(
+            name='StepByStepRUp', 
+            params={'target_voltage' : {
+                'min_value' : 0, 
+                'max_value' : 2500,
+                'description' : 'Voltage to be set.'
+            },
+            'steps' : {
+                'min_value' : 1,
+                'max_value' : 100,
+                'description' : 'Number of steps to be made in the process of setting target voltage.'
+            }
+        })
+
+    @property
+    def description(self) -> Ticket_info:
+        return Ticket_info(name='SetVoltage', params={'target_voltage' : self.__target})
