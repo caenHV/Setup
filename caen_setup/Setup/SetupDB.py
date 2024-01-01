@@ -31,7 +31,7 @@ class Channel(Base):
     VMon: Mapped[Optional[float]]
     ISet: Mapped[Optional[float]]
     IMon: Mapped[Optional[float]]
-    IMON_RANGE: Mapped[Optional[int]]
+    ImonH: Mapped[Optional[float]]
     ImonL: Mapped[Optional[float]]
     
     RUp: Mapped[Optional[float]]
