@@ -129,7 +129,7 @@ class Handler:
         if chs is not None:
             for ch in chs:
                 channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-                self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 300), ('RDWn', 300)])
+                self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 300), ('RDWn', 100), ('PDwn', 1)])
         
 
     def __del__(self):
