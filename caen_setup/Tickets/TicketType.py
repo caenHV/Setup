@@ -8,6 +8,7 @@ class TicketType(Enum):
     SetVoltage = Tickets.SetVoltage_Ticket
     Down = Tickets.Down_Ticket
     GetParams = Tickets.GetParams_Ticket
+    StepByStepRUp = Tickets.StepByStepRUp_Ticket
 
     @classmethod
     def names(cls) -> set[str]:

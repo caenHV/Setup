@@ -89,7 +89,8 @@ class Channel_info:
     board_info: Board_info
     channel_num: int
     layer: int | None = None
-    par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
+    # par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
+    par_names: ClassVar[tuple[str, ...]] = ('VSet', 'ISet', 'VMon', 'IMonH', 'Pw', 'ChStatus', 'Trip', 'SVMax', 'RDWn', 'RUp', 'PDwn', 'Polarity', 'Temp', 'ImonRange', 'IMonL')
     
     @classmethod
     def from_db_object(cls, channel: Channel, board: Board)->"Channel_info":
@@ -123,6 +124,12 @@ class Handler:
         boards = Board_info.from_json(config_path)
         self.__remove_DB_records()
         self.__initialize_boards(config = boards)
+        
+        chs = self.__get_channels()
+        if chs is not None:
+            for ch in chs:
+                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
+                self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 300), ('RDWn', 100), ('PDwn', 1)])
         
 
     def __del__(self):
@@ -331,8 +338,7 @@ class Handler:
             return None
         
         if (ch.last_update is None or datetime.now() - ch.last_update > self.refresh_time): # type: ignore
-            params = BoardCAEN.get_parameters(board.handler, [channel.channel_num], list(Channel_info.par_names)) # type: ignore
-            self.__update_parameters(channel, params[channel.channel_num])
+            self.__update_parameters(channel)
             
             data = self.__get_channel(channel)
             if data is None:
@@ -341,9 +347,17 @@ class Handler:
             
         return {par : ch.__getattribute__(par) for par in Channel_info.par_names}
 
-    def __update_parameters(self, channel: Channel_info, params: dict[str, float]) -> None:
+    def __update_parameters(self, channel: Channel_info) -> None:
         """Updates parameters from `params` dictionary in the database"""
-        update_data: dict[str, float | datetime | str] = params # type: ignore
+        data = self.__get_channel(channel)
+        if data is None:
+            return None
+        try:
+            params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
+        except:
+            # TODO: Log about troubles.
+            return
+        update_data: dict[str, float | datetime | str] = params[channel.channel_num] # type: ignore
         update_data["last_update"] = datetime.now()
         stmt = (
             update(Channel)
@@ -354,23 +368,20 @@ class Handler:
             )
             .values(**update_data)
         )
-        # print(stmt)
         with self.db_manager.get_session() as session:
             session.execute(stmt)
             session.commit()
         
-    def __set_parameters(self, channel: Channel_info, params_dict: dict[str, float]) -> bool:
+    def __set_parameters(self, channel: Channel_info, params_dict: list[tuple[str, float]]) -> bool:
         """Sets parameters from `params_dict` to CAEN and updates database information"""
         data = self.__get_channel(channel)
         if data is None:
             return False
         try:
             BoardCAEN.set_parameters(data['Board'].handler, [channel.channel_num], params_dict) # type: ignore
-            params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
         except:
             # TODO: Log about troubles.
             return False
-        self.__update_parameters(channel, params[channel.channel_num])
         return True
     
     def set_voltage(self, layer: int | None = None, voltage: float = 0.)->None:
@@ -384,12 +395,12 @@ class Handler:
         
         if channels is None: 
             return 
-        
+        ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, {'VSet' : voltage})
-            # ??: Do we need to turn a board on be setting Pw = 1&?
-            self.pw_up(layer=layer)
+            self.__set_parameters(channel_info, [('VSet', voltage)])
+            ch_info_list.append(channel_info)   
+        self.pw_up(layer=layer)
     
     def pw_down(self, layer: int | None = None)->None:
         if layer is None:
@@ -400,9 +411,12 @@ class Handler:
         if channels is None: 
             return 
         
+        ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, {'Pw' : 0})
+            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0)])
+            ch_info_list.append(channel_info)
+        list(map(self.__update_parameters, ch_info_list))
     
     def pw_up(self, layer: int | None = None)->None:
         if layer is None:
@@ -412,10 +426,12 @@ class Handler:
         
         if channels is None: 
             return 
-        
+        ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, {'Pw' : 1})
+            self.__set_parameters(channel_info, [('Pw', 1)])
+            ch_info_list.append(channel_info)
+        list(map(self.__update_parameters, ch_info_list))
     
     def get_params(self, layer: int | None = None, params: set[str] | None = None)->dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)

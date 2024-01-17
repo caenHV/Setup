@@ -54,9 +54,9 @@ class BoardCAEN:
 
     @staticmethod
     def set_parameters(
-        handler: int, channels: List[int], parameters: Dict[str, float]
+        handler: int, channels: List[int], parameters: list[tuple[str, float]]
     ) -> None:
         for ch in channels:
-            for par_name, par_val in parameters.items():
+            for par_name, par_val in parameters:
                 set_channel_parameter(handler, BoardCAEN.slot, ch, par_name, par_val)
         return
