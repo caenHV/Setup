@@ -398,8 +398,9 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', 20), ('RDown', 20)])
-            ch_info_list.append(channel_info)   
+            ch_info_list.append(channel_info)  
+        for ch in ch_info_list:
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', 20)])    
         self.pw_up(layer=layer)
     
     def pw_down(self, layer: int | None = None)->None:
