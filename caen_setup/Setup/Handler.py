@@ -129,7 +129,7 @@ class Handler:
         if chs is not None:
             for ch in chs:
                 channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-                self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 300), ('RDWn', 100), ('PDwn', 1)])
+                self.__set_parameters(channel_info, [('ImonRange', 1), ('Trip', 0.1), ('RUp', 20), ('RDWn', 100), ('PDwn', 1)])
         
 
     def __del__(self):
@@ -398,7 +398,7 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('VSet', voltage)])
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', 20), ('RDown', 20)])
             ch_info_list.append(channel_info)   
         self.pw_up(layer=layer)
     
@@ -414,7 +414,7 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0)])
+            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
             ch_info_list.append(channel_info)
         list(map(self.__update_parameters, ch_info_list))
     
