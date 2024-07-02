@@ -384,7 +384,7 @@ class Handler:
             return False
         return True
     
-    def set_voltage(self, layer: int | None = None, voltage: float = 0.)->None:
+    def set_voltage(self, layer: int | None = None, voltage: float = 0., speed: float = 20)->None:
         if voltage < 0 or voltage > 3e3:
             raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
         
@@ -400,7 +400,7 @@ class Handler:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             ch_info_list.append(channel_info)  
         for ch in ch_info_list:
-            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', 10)])    
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])    
         self.pw_up(layer=layer)
     
     def pw_down(self, layer: int | None = None)->None:
@@ -415,8 +415,9 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
             ch_info_list.append(channel_info)
+        for ch in ch_info_list:
+            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
         list(map(self.__update_parameters, ch_info_list))
     
     def pw_up(self, layer: int | None = None)->None:
