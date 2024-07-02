@@ -29,7 +29,8 @@ default_voltages = {
             "21" : 1265,
             "-1" : 0.0
         }
-        
+max_default_voltage = max(default_voltages.values())   
+
 class Ticket(ABC):
     @abstractmethod
     def __init__(self, params: dict):
@@ -87,8 +88,9 @@ class SetVoltage_Ticket(Ticket):
     
     def execute(self, handler: Handler) -> str:
         try:                
+            Ramp_Up_Down_speed = 10
             for layer, volt in default_voltages.items():
-                handler.set_voltage(int(layer), self.__target * volt)
+                handler.set_voltage(int(layer), self.__target * volt, speed = Ramp_Up_Down_speed * volt / max_default_voltage)
                 
             return json.dumps({
                 "status": True,
