@@ -384,7 +384,7 @@ class Handler:
             return False
         return True
     
-    def set_voltage(self, layer: int | None = None, voltage: float = 0., speed: float = 20)->None:
+    def set_voltage(self, layer: int | None = None, voltage: float = 0., speed: int = 20)->None:
         if voltage < 0 or voltage > 3e3:
             raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
         
