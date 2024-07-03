@@ -398,8 +398,11 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])    
             ch_info_list.append(channel_info)      
+        
+        for channel_info in ch_info_list:
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])                
+        
         self.pw_up(layer=layer)
     
     def pw_down(self, layer: int | None = None)->None:
@@ -415,6 +418,8 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             ch_info_list.append(channel_info)
+        
+        for channel_info in ch_info_list:
             self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
         list(map(self.__update_parameters, ch_info_list))
     
@@ -429,8 +434,9 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [('Pw', 1)])
             ch_info_list.append(channel_info)
+        for channel_info in ch_info_list:
+            self.__set_parameters(channel_info, [('Pw', 1)])
         list(map(self.__update_parameters, ch_info_list))
     
     def get_params(self, layer: int | None = None, params: set[str] | None = None)->dict[str, dict | None]:
