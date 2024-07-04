@@ -91,7 +91,7 @@ class SetVoltage_Ticket(Ticket):
             Ramp_Up_Down_speed: int = 10
             for layer, volt in default_voltages.items():
                 rup_speed = round(Ramp_Up_Down_speed * volt / max_default_voltage) if layer != '-1' else Ramp_Up_Down_speed
-                handler.set_voltage(int(layer), self.__target * volt, rup_speed)
+                handler.set_voltage(int(layer), self.__target * volt, 10)
                 
             return json.dumps({
                 "status": True,
