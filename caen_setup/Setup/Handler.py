@@ -401,10 +401,11 @@ class Handler:
             ch_info_list.append(channel_info)      
         
         for x in ch_info_list:
-            print(x)
-            print('voltage', voltage)
-            print('speed', speed)
-            print('\n\n')
+            with open('logfile.txt', 'a') as f:
+                f.write(str(x) + '\n')
+                f.write(f'voltage {voltage}\n')
+                f.write(f'speed {speed}\n')
+                f.write('\n\n')
             self.__set_parameters(x, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])                
         
         self.pw_up(layer=layer)
