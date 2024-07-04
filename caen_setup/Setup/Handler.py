@@ -385,7 +385,7 @@ class Handler:
         return True
     
     def set_voltage(self, layer: int | None = None, voltage: float = 0., speed: int = 20)->None:
-        if voltage < 0 or voltage > 3e3:
+        if voltage < 0 or voltage > 2.2e3:
             raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
         
         if layer is None:
@@ -399,12 +399,7 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             ch_info_list.append(channel_info)     
-            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])    
-            with open('/repos/caen_tools/logfile.txt', 'a') as f:
-                f.write(str(channel_info) + '\n')
-                f.write(f'voltage {voltage}\n')
-                f.write(f'speed {speed}\n')
-                f.write('\n\n')              
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])              
         
         self.pw_up(layer=layer)
     
