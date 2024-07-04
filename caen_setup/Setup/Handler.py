@@ -401,6 +401,10 @@ class Handler:
             ch_info_list.append(channel_info)      
         
         for x in ch_info_list:
+            print(x)
+            print('voltage', voltage)
+            print('speed', speed)
+            print('\n\n')
             self.__set_parameters(x, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])                
         
         self.pw_up(layer=layer)
