@@ -401,7 +401,7 @@ class Handler:
             ch_info_list.append(channel_info)      
         
         for x in ch_info_list:
-            with open('logfile.txt', 'a') as f:
+            with open('/repos/caen_tools/logfile.txt', 'a') as f:
                 f.write(str(x) + '\n')
                 f.write(f'voltage {voltage}\n')
                 f.write(f'speed {speed}\n')
