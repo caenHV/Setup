@@ -178,16 +178,8 @@ class Handler:
         if chs is not None:
             for ch in chs:
                 channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-                self.__set_parameters(
-                    channel_info,
-                    [
-                        ("ImonRange", 1),
-                        ("Trip", 0.1),
-                        ("RUp", 300),
-                        ("RDWn", 100),
-                        ("PDwn", 1),
-                    ],
-                )
+                self.__set_parameters(channel_info, [('ImonRange', 0), ('Trip', 0.2), ('RUp', 10), ('RDWn', 100), ('PDwn', 1)])
+        
 
     def __del__(self):
         self.__deinitialize_boards()
@@ -467,10 +459,10 @@ class Handler:
             # TODO: Log about troubles.
             return False
         return True
-
-    def set_voltage(self, layer: int | None = None, voltage: float = 0.0) -> None:
-        if voltage < 0 or voltage > 3e3:
-            raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
+    
+    def set_voltage(self, layer: int | None = None, voltage: float = 0., speed: int = 20)->None:
+        if voltage < 0 or voltage > 2.2e3:
+            raise ValueError("Voltage is either less than zero or bigger than 2200 V.")
 
         if layer is None:
             channels = self.__get_channels()
@@ -482,8 +474,9 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [("VSet", voltage)])
-            ch_info_list.append(channel_info)
+            ch_info_list.append(channel_info)     
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])              
+        
         self.pw_up(layer=layer)
 
     def pw_down(self, layer: int | None = None) -> None:
@@ -498,8 +491,9 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [("VSet", 0), ("Pw", 0)])
             ch_info_list.append(channel_info)
+            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
+
         list(map(self.__update_parameters, ch_info_list))
 
     def pw_up(self, layer: int | None = None) -> None:
@@ -513,8 +507,8 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, [("Pw", 1)])
             ch_info_list.append(channel_info)
+            self.__set_parameters(channel_info, [('Pw', 1)])
         list(map(self.__update_parameters, ch_info_list))
 
     def get_params(
