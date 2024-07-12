@@ -181,7 +181,7 @@ class Handler:
                 self.__set_parameters(channel_info, [('ImonRange', 0), ('Trip', 0.2), ('RUp', 10), ('RDWn', 100), ('PDwn', 1)])
         
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.__deinitialize_boards()
 
     def __initialize_boards(self, config: list[Board_info]):
@@ -204,6 +204,8 @@ class Handler:
     def __deinitialize_boards(self) -> None:
         """Deinits working boards"""
         boards = self.__get_boards()
+        self.set_voltage(None, 0, 100)
+        self.pw_down(None)
         for board in boards:
             if board.handler is not None:
                 BoardCAEN.deinitialize(board.handler)
