@@ -35,7 +35,6 @@ class Board_info:
             self.board_address : {
                 "conet" : self.conet,
                 "link" : self.link
-                # TODO: add "channels_by_layer"
             }
         }
         return res
@@ -91,7 +90,6 @@ class Channel_info:
     board_info: Board_info
     channel_num: int
     layer: int | None = None
-    # par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
     par_names: ClassVar[tuple[str, ...]] = ('VSet', 'ISet', 'VMon', 'IMonH', 'Pw', 'ChStatus', 'Trip', 'SVMax', 'RDWn', 'RUp', 'PDwn', 'Polarity', 'Temp', 'ImonRange', 'IMonL')
     
     @classmethod
@@ -110,7 +108,7 @@ class Channel_info:
         return json.dumps(res_dict)
     
 class Handler:
-    def __init__(self, config_path: str, refresh_time: int = 10, dev_mode: bool = False):
+    def __init__(self, config_path: str, refresh_time: int = 10):
         """
         Parameters
         ----------
@@ -118,11 +116,9 @@ class Handler:
             path to database
         refresh_time: int
             the time limit in seconds when database data is considered as fresh
-        dev_mode: bool
-            developing mode: using of sqlite in memory cache database (default False)
         """
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite") if dev_mode else SetupDB_manager.from_args()
+        self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite")
         boards = Board_info.from_json(config_path)
         
         with open(config_path) as f:
@@ -257,7 +253,6 @@ class Handler:
             try:
                 handler = session.execute(stmt).one()
             except (MultipleResultsFound, NoResultFound) as e:
-                # TODO: Log me!
                 return None
         return handler.tuple()[-1]    
             
@@ -294,7 +289,6 @@ class Handler:
             try:
                 query_res =query_res.one()
             except (MultipleResultsFound, NoResultFound) as e:
-                # TODO: Log exception
                 return None
             return [query_res._asdict()]
         
@@ -364,7 +358,6 @@ class Handler:
         try:
             params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
         except:
-            # TODO: Log about troubles.
             return
         update_data: dict[str, float | datetime | str] = params[channel.channel_num] # type: ignore
         update_data["last_update"] = datetime.now()
@@ -389,7 +382,6 @@ class Handler:
         try:
             BoardCAEN.set_parameters(data['Board'].handler, [channel.channel_num], params_dict) # type: ignore
         except:
-            # TODO: Log about troubles.
             return False
         return True
     

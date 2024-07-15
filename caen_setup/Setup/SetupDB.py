@@ -53,11 +53,6 @@ class SetupDB_manager:
         connection = self.__engine.connect()
         Base.metadata.create_all(self.__engine)
 
-    @classmethod
-    def from_args(cls, drivername: str ="postgresql+psycopg2", username: str ="postgres", password: str ="qwerty", database: str="caen_handler"):
-        dbpath = f"{drivername}://{username}:{password}@localhost/{database}"
-        return cls(dbpath)
-
     def get_session(self):
         Session = sessionmaker(bind=self.__engine)
         return Session()
