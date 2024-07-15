@@ -54,25 +54,27 @@ class Board_info:
         if filepath.suffix != '.json' or not filepath.is_file():
             raise ValueError("Path %s doesn't point to .json file.", path)
         
-        with open(filepath) as f:
-            data: dict[str, dict[str, int | dict[str, list[int]]]] = json.load(f)
+        with open(filepath, 'r') as f:
+            raw_data: dict[str, dict[str, dict[str, int | dict[str, list[int]]]]] = json.load(f)
             
         if (
-            type(data) is not dict or 
-            not all([set(['conet', 'link', 'channels_by_layer']).issubset(info.keys()) for _, info in data.items()])
+            type(raw_data) is not dict or 
+            "board_info" not in raw_data.keys() or
+            not all([set(['conet', 'link', 'channels_by_layer']).issubset(info.keys()) for _, info in raw_data['board_info'].items()])
         ):
             e = ValueError("Config file is wrong.")
             e.add_note("""Make sure that config file is formatted as json dict:
-                        {
-                            "some_board_address" : {
-                                "conet" : conet_num,
-                                "link" : link_num
-                                "channels_by_layer" : {
-                                    "*layer_num*" : [*ch_nums*]
+                        "board_info" : {
+                                "some_board_address" : {
+                                    "conet" : conet_num,
+                                    "link" : link_num
+                                    "channels_by_layer" : {
+                                        "*layer_num*" : [*ch_nums*]
+                                    }
                                 }
-                            }
-                        }""")
+                            }""")
             raise e
+        data = raw_data['board_info']
         
         def get_channels(channels_by_layer: dict[str, list[int]])->list[_Channel_LayerPair]:
             channels = []
@@ -122,6 +124,11 @@ class Handler:
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
         self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite") if dev_mode else SetupDB_manager.from_args()
         boards = Board_info.from_json(config_path)
+        
+        with open(config_path) as f:
+            self.__default_voltages: dict[str, int] = json.load(f)['default_voltages'] 
+        self.__max_default_voltage = max(self.__default_voltages.values())   
+
         self.__remove_DB_records()
         self.__initialize_boards(config = boards)
         
@@ -386,9 +393,9 @@ class Handler:
             return False
         return True
     
-    def set_voltage(self, layer: int | None = None, voltage: float = 0., speed: int = 20)->None:
-        if voltage < 0 or voltage > 2.2e3:
-            raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
+    def set_voltage(self, layer: int | None = None, voltage_multiplier: float = 0., default_speed: int = 20)->None:
+        if voltage_multiplier < 0 or voltage_multiplier > 1.5:
+            raise ValueError("Voltage is either less than zero or bigger than 3000 V <=> voltage_multiplier > 1.5.")
         
         if layer is None:
             channels = self.__get_channels()
@@ -401,7 +408,12 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             ch_info_list.append(channel_info)     
-            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', speed), ('RDown', speed)])              
+            def_volt = self.__default_voltages.get(str(channel_info.layer), 0.0)
+            voltage = def_volt * voltage_multiplier
+ 
+            rup_speed = round(default_speed * def_volt / self.__max_default_voltage) if layer != '-1' else default_speed
+            print(str(channel_info.layer), def_volt, voltage_multiplier, rup_speed)
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', rup_speed), ('RDown', rup_speed)])              
         
         self.pw_up(layer=layer)
     
