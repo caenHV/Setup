@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 import json
+import time
 
-from caen_setup.Setup.Handler import Channel_info, Handler
+from caen_setup.Setup.Handler import Handler
 from caen_setup.Tickets.TicketInfo import Ticket_info, Ticket_Type_info
 
 class Ticket(ABC):
@@ -10,7 +11,7 @@ class Ticket(ABC):
         pass
     
     @abstractmethod
-    def execute(self, handler: Handler):
+    def execute(self, handler: Handler)->str:
         pass
     
     @staticmethod
@@ -28,16 +29,28 @@ class Down_Ticket(Ticket):
     def __init__(self, params: dict):
         pass
     
-    def execute(self, handler: Handler):
-        handler.pw_down(None)
+    def execute(self, handler: Handler) -> str:
+        try:
+            handler.pw_down(None)
+            return json.dumps({
+                "status": True,
+                "body" : {}
+            })
+        except Exception as e:
+            return json.dumps({
+                "status": False,
+                "body" : {
+                    "error" : str(e) 
+                }
+            })
         
     @staticmethod
     def type_description()->Ticket_Type_info:
-        return Ticket_Type_info(name='Down', args={})
+        return Ticket_Type_info(name='Down', params={})
 
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='Down', args={}) 
+        return Ticket_info(name='Down', params={}) 
     
 class SetVoltage_Ticket(Ticket):
     params_keys: set[str] = set({'target_voltage'})
@@ -47,23 +60,37 @@ class SetVoltage_Ticket(Ticket):
             raise KeyError(f"Passed params dict doesn't contain all required fields ({self.params_keys})")
         self.__target = float(params['target_voltage'])
     
-    def execute(self, handler: Handler):
-        handler.set_voltage(None, self.__target)
+    def execute(self, handler: Handler) -> str:
+        try:                
+            Ramp_Up_Down_speed: int = 10
+            handler.set_voltage(None, self.__target, Ramp_Up_Down_speed)
+                
+            return json.dumps({
+                "status": True,
+                "body" : {}
+            })
+        except Exception as e:
+            return json.dumps({
+                "status": False,
+                "body" : {
+                    "error" : str(e) 
+                }
+            })
         
     @staticmethod
     def type_description()->Ticket_Type_info:
         return Ticket_Type_info(
             name='SetVoltage', 
-            args={'target_voltage' : {
+            params={'target_voltage' : {
                 'min_value' : 0, 
-                'max_value' : 2500,
-                'description' : 'Voltage to be set.'
+                'max_value' : 1.2,
+                'description' : 'Voltage multiplier to be set.'
             }
         })
 
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='SetVoltage', args={'target_voltage' : self.__target})
+        return Ticket_info(name='SetVoltage', params={'target_voltage' : self.__target})
 
 class GetParams_Ticket(Ticket):
     params_keys: set[str] = set({})
@@ -71,21 +98,31 @@ class GetParams_Ticket(Ticket):
     def __init__(self, params: dict):
         if not self.params_keys.issubset(params.keys()):
             raise KeyError(f"Passed params dict doesn't contain all required fields ({self.params_keys})")
-    
+        
     def execute(self, handler: Handler) -> str:
-        ch_params = handler.get_params(None, None)
         
-        def get_key(ch_info: Channel_info)->str:
-            return f"{ch_info.board_info.board_address}_{ch_info.board_info.link}_{ch_info.board_info.conet}_{ch_info.channel_num}"
+        try:
+            ch_params = handler.get_params(None, None)
             
-        res = {ch : {} if pars is None else pars  for ch, pars in ch_params.items()}
-        return json.dumps(res)
-        
+            res = {ch : {} if pars is None else pars  for ch, pars in ch_params.items()}
+            return json.dumps({
+                "status" : True,
+                "body" : {
+                    "params" : res
+                }
+            })
+        except Exception as e:
+            return json.dumps({
+                "status" : False,
+                "body" : {
+                    "error" : str(e)
+                }
+            })
+            
     @staticmethod
     def type_description()->Ticket_Type_info:
-        return Ticket_Type_info(name='GetParams', args={})
+        return Ticket_Type_info(name='GetParams', params={})
     
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='GetParams', args={})
-        
+        return Ticket_info(name='GetParams', params={})

@@ -1,7 +1,6 @@
 from enum import Enum
 
 from caen_setup.Tickets import Tickets
-from caen_setup.Tickets.TicketInfo import Ticket_Type_info
 
 
 class TicketType(Enum):

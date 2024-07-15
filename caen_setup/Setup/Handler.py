@@ -35,7 +35,6 @@ class Board_info:
             self.board_address : {
                 "conet" : self.conet,
                 "link" : self.link
-                # TODO: add "channels_by_layer"
             }
         }
         return res
@@ -54,25 +53,27 @@ class Board_info:
         if filepath.suffix != '.json' or not filepath.is_file():
             raise ValueError("Path %s doesn't point to .json file.", path)
         
-        with open(filepath) as f:
-            data: dict[str, dict[str, int | dict[str, list[int]]]] = json.load(f)
+        with open(filepath, 'r') as f:
+            raw_data: dict[str, dict[str, dict[str, int | dict[str, list[int]]]]] = json.load(f)
             
         if (
-            type(data) is not dict or 
-            not all([set(['conet', 'link', 'channels_by_layer']).issubset(info.keys()) for _, info in data.items()])
+            type(raw_data) is not dict or 
+            "board_info" not in raw_data.keys() or
+            not all([set(['conet', 'link', 'channels_by_layer']).issubset(info.keys()) for _, info in raw_data['board_info'].items()])
         ):
             e = ValueError("Config file is wrong.")
             e.add_note("""Make sure that config file is formatted as json dict:
-                        {
-                            "some_board_address" : {
-                                "conet" : conet_num,
-                                "link" : link_num
-                                "channels_by_layer" : {
-                                    "*layer_num*" : [*ch_nums*]
+                        "board_info" : {
+                                "some_board_address" : {
+                                    "conet" : conet_num,
+                                    "link" : link_num
+                                    "channels_by_layer" : {
+                                        "*layer_num*" : [*ch_nums*]
+                                    }
                                 }
-                            }
-                        }""")
+                            }""")
             raise e
+        data = raw_data['board_info']
         
         def get_channels(channels_by_layer: dict[str, list[int]])->list[_Channel_LayerPair]:
             channels = []
@@ -89,7 +90,7 @@ class Channel_info:
     board_info: Board_info
     channel_num: int
     layer: int | None = None
-    par_names: ClassVar[tuple[str, ...]] = ("Pw", "VSet", "RUp", "RDWn", "ISet", "Temp", "VMon")
+    par_names: ClassVar[tuple[str, ...]] = ('VSet', 'ISet', 'VMon', 'IMonH', 'Pw', 'ChStatus', 'Trip', 'SVMax', 'RDWn', 'RUp', 'PDwn', 'Polarity', 'Temp', 'ImonRange', 'IMonL')
     
     @classmethod
     def from_db_object(cls, channel: Channel, board: Board)->"Channel_info":
@@ -107,7 +108,7 @@ class Channel_info:
         return json.dumps(res_dict)
     
 class Handler:
-    def __init__(self, config_path: str, refresh_time: int = 10, dev_mode: bool = False):
+    def __init__(self, config_path: str, refresh_time: int = 10):
         """
         Parameters
         ----------
@@ -115,17 +116,26 @@ class Handler:
             path to database
         refresh_time: int
             the time limit in seconds when database data is considered as fresh
-        dev_mode: bool
-            developing mode: using of sqlite in memory cache database (default False)
         """
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite") if dev_mode else SetupDB_manager.from_args()
+        self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite")
         boards = Board_info.from_json(config_path)
+        
+        with open(config_path) as f:
+            self.__default_voltages: dict[str, int] = json.load(f)['default_voltages'] 
+        self.__max_default_voltage = max(self.__default_voltages.values())   
+
         self.__remove_DB_records()
         self.__initialize_boards(config = boards)
         
+        chs = self.__get_channels()
+        if chs is not None:
+            for ch in chs:
+                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
+                self.__set_parameters(channel_info, [('ImonRange', 0), ('Trip', 0.2), ('RUp', 10), ('RDWn', 100), ('PDwn', 1)])
+        
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.__deinitialize_boards()
     
     def __initialize_boards(self, config: list[Board_info]):
@@ -148,6 +158,8 @@ class Handler:
     def __deinitialize_boards(self) -> None:
         """Deinits working boards"""
         boards = self.__get_boards()
+        self.set_voltage(None, 0, 100)
+        self.pw_down(None)
         for board in boards:
             if board.handler is not None:
                 BoardCAEN.deinitialize(board.handler)
@@ -241,7 +253,6 @@ class Handler:
             try:
                 handler = session.execute(stmt).one()
             except (MultipleResultsFound, NoResultFound) as e:
-                # TODO: Log me!
                 return None
         return handler.tuple()[-1]    
             
@@ -278,7 +289,6 @@ class Handler:
             try:
                 query_res =query_res.one()
             except (MultipleResultsFound, NoResultFound) as e:
-                # TODO: Log exception
                 return None
             return [query_res._asdict()]
         
@@ -331,8 +341,7 @@ class Handler:
             return None
         
         if (ch.last_update is None or datetime.now() - ch.last_update > self.refresh_time): # type: ignore
-            params = BoardCAEN.get_parameters(board.handler, [channel.channel_num], list(Channel_info.par_names)) # type: ignore
-            self.__update_parameters(channel, params[channel.channel_num])
+            self.__update_parameters(channel)
             
             data = self.__get_channel(channel)
             if data is None:
@@ -341,9 +350,16 @@ class Handler:
             
         return {par : ch.__getattribute__(par) for par in Channel_info.par_names}
 
-    def __update_parameters(self, channel: Channel_info, params: dict[str, float]) -> None:
+    def __update_parameters(self, channel: Channel_info) -> None:
         """Updates parameters from `params` dictionary in the database"""
-        update_data: dict[str, float | datetime | str] = params # type: ignore
+        data = self.__get_channel(channel)
+        if data is None:
+            return None
+        try:
+            params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
+        except:
+            return
+        update_data: dict[str, float | datetime | str] = params[channel.channel_num] # type: ignore
         update_data["last_update"] = datetime.now()
         stmt = (
             update(Channel)
@@ -354,28 +370,24 @@ class Handler:
             )
             .values(**update_data)
         )
-        # print(stmt)
         with self.db_manager.get_session() as session:
             session.execute(stmt)
             session.commit()
         
-    def __set_parameters(self, channel: Channel_info, params_dict: dict[str, float]) -> bool:
+    def __set_parameters(self, channel: Channel_info, params_dict: list[tuple[str, float]]) -> bool:
         """Sets parameters from `params_dict` to CAEN and updates database information"""
         data = self.__get_channel(channel)
         if data is None:
             return False
         try:
             BoardCAEN.set_parameters(data['Board'].handler, [channel.channel_num], params_dict) # type: ignore
-            params = BoardCAEN.get_parameters(data['Board'].handler, [channel.channel_num], Channel_info.par_names) # type: ignore
         except:
-            # TODO: Log about troubles.
             return False
-        self.__update_parameters(channel, params[channel.channel_num])
         return True
     
-    def set_voltage(self, layer: int | None = None, voltage: float = 0.)->None:
-        if voltage < 0 or voltage > 3e3:
-            raise ValueError("Voltage is either less than zero or bigger than 3000 V.")
+    def set_voltage(self, layer: int | None = None, voltage_multiplier: float = 0., default_speed: int = 20)->None:
+        if voltage_multiplier < 0 or voltage_multiplier > 1.5:
+            raise ValueError("Voltage is either less than zero or bigger than 3000 V <=> voltage_multiplier > 1.5.")
         
         if layer is None:
             channels = self.__get_channels()
@@ -384,12 +396,18 @@ class Handler:
         
         if channels is None: 
             return 
-        
+        ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, {'VSet' : voltage})
-            # ??: Do we need to turn a board on be setting Pw = 1&?
-            self.pw_up(layer=layer)
+            ch_info_list.append(channel_info)     
+            def_volt = self.__default_voltages.get(str(channel_info.layer), 0.0)
+            voltage = def_volt * voltage_multiplier
+ 
+            rup_speed = round(default_speed * def_volt / self.__max_default_voltage) if layer != '-1' else default_speed
+            print(str(channel_info.layer), def_volt, voltage_multiplier, rup_speed)
+            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', rup_speed), ('RDown', rup_speed)])              
+        
+        self.pw_up(layer=layer)
     
     def pw_down(self, layer: int | None = None)->None:
         if layer is None:
@@ -400,9 +418,13 @@ class Handler:
         if channels is None: 
             return 
         
+        ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, {'Pw' : 0})
+            ch_info_list.append(channel_info)
+            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
+
+        list(map(self.__update_parameters, ch_info_list))
     
     def pw_up(self, layer: int | None = None)->None:
         if layer is None:
@@ -412,10 +434,12 @@ class Handler:
         
         if channels is None: 
             return 
-        
+        ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            self.__set_parameters(channel_info, {'Pw' : 1})
+            ch_info_list.append(channel_info)
+            self.__set_parameters(channel_info, [('Pw', 1)])
+        list(map(self.__update_parameters, ch_info_list))
     
     def get_params(self, layer: int | None = None, params: set[str] | None = None)->dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)
