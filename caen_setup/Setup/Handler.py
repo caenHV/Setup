@@ -7,9 +7,6 @@ import pathlib
 from sqlalchemy import and_, delete, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 
-from caen_setup.Setup.board import FakeBoard as BoardCAEN
-
-# from caen_setup.Setup.boardcaen import BoardCAEN
 from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 
@@ -129,22 +126,33 @@ class Channel_info:
 
 
 class Handler:
-    def __init__(self, config_path: str, refresh_time: int = 10):
-        """
-        Parameters
-        ----------
-        path: str
-            path to database
-        refresh_time: int
-            the time limit in seconds when database data is considered as fresh
-        """
+    """A class for dealing with the current state of the CAEN board
+
+    Parameters
+    ----------
+    path: str
+        path to database
+    refresh_time: int
+        the time limit in seconds when database data is considered as fresh
+    fake_board: bool
+        use fake board interface (for development purposes)
+    """
+
+    def __init__(self, config_path: str, refresh_time: int = 10, fake_board: bool = True):
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
         self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite")
         boards = Board_info.from_json(config_path)
-        
-        with open(config_path) as f:
-            self.__default_voltages: dict[str, int] = json.load(f)['default_voltages'] 
-        self.__max_default_voltage = max(self.__default_voltages.values())   
+
+        if fake_board:
+            from caen_setup.Setup.board import FakeBoard
+            self.BoardCAEN = FakeBoard
+        else:
+            from caen_setup.Setup.boardcaen import BoardCAEN
+            self.BoardCAEN = BoardCAEN
+
+        with open(config_path, encoding="utf-8") as f:
+            self.__default_voltages: dict[str, int] = json.load(f)['default_voltages']
+        self.__max_default_voltage = max(self.__default_voltages.values())
 
         self.__remove_DB_records()
         self.__initialize_boards(config=boards)
@@ -168,7 +176,7 @@ class Handler:
             if board_address not in config_board_addresses:
                 self.__remove_board(board)
                 continue
-            board.handler = BoardCAEN.initialize(board_address, conet=conet, link=link)
+            board.handler = self.BoardCAEN.initialize(board_address, conet=conet, link=link)
             self.__reserve_board_channels(board)
             self.__fill_board_handler(board)
 
@@ -183,7 +191,7 @@ class Handler:
         self.pw_down(None)
         for board in boards:
             if board.handler is not None:
-                BoardCAEN.deinitialize(board.handler)
+                self.BoardCAEN.deinitialize(board.handler)
                 board.handler = None
                 self.__fill_board_handler(board)
                 # self.__remove_DB_records()
@@ -194,7 +202,7 @@ class Handler:
         if self.__get_board_handler(info) is not None:
             raise ValueError("This board already exists.")
 
-        info.handler = BoardCAEN.initialize(
+        info.handler = self.BoardCAEN.initialize(
             info.board_address, conet=info.conet, link=info.link
         )
         self.__fill_board_handler(info)
@@ -401,7 +409,7 @@ class Handler:
         if data is None:
             return None
         try:
-            params = BoardCAEN.get_parameters(data["Board"].handler, [channel.channel_num], Channel_info.par_names)  # type: ignore
+            params = self.BoardCAEN.get_parameters(data["Board"].handler, [channel.channel_num], Channel_info.par_names)  # type: ignore
         except:
             return
         update_data: dict[str, float | datetime | str] = params[channel.channel_num]  # type: ignore
@@ -428,7 +436,7 @@ class Handler:
         if data is None:
             return False
         try:
-            BoardCAEN.set_parameters(data["Board"].handler, [channel.channel_num], params_dict)  # type: ignore
+            self.BoardCAEN.set_parameters(data["Board"].handler, [channel.channel_num], params_dict)  # type: ignore
         except:
             return False
         return True
