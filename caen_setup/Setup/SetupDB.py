@@ -22,6 +22,7 @@ class Channel(Base):
     __tablename__ = "channels"
     channel: Mapped[int] = mapped_column(primary_key=True)
     
+    alias: Mapped[Optional[str]]
     layer: Mapped[Optional[int]]
     last_update: Mapped[Optional[datetime]]
     

@@ -12,18 +12,22 @@ from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 
 @dataclass
 class _Channel_LayerPair:
+    """Defines a channel mappings"""
     channel: int
+    alias: str
     layer: int | None = None
 
 
 @dataclass
 class Board_info:
+    """Defines a board structure"""
+
     board_address: str
     conet: int
     link: int
     handler: int | None = None
     channels: list[_Channel_LayerPair] | None = None
-    """list[Channel_LayerPair[channel_num, channel_layer]]
+    """list[Channel_LayerPair[channel_num, channel_layer, alias]]
     """
 
     def tuple(self) -> tuple[str, int, int, int | None]:
@@ -40,89 +44,168 @@ class Board_info:
 
     @classmethod
     def from_db_object(cls, board: Board) -> "Board_info":
+        """Creates an instance of Board_info from current database"""
+
         b_info = cls(
             board_address=board.address,
             conet=board.conet,
             link=board.link,
             handler=board.handler,
             channels=[
-                _Channel_LayerPair(channel=ch.channel, layer=ch.layer)
+                _Channel_LayerPair(channel=ch.channel, layer=ch.layer, alias=ch.alias)
                 for ch in board.channels
             ],
         )
         return b_info
 
+    @staticmethod
+    def __open_config(path: str) -> dict:
+        """Opens a given config and provides some test of it
+        
+        Parameters
+        ----------
+        path : str
+            path to the config file
+
+        Returns
+        -------
+        dict
+            parsed config        
+        """
+
+        filepath = pathlib.Path(path)
+
+        if not filepath.exists():
+            raise ValueError(f"Path {path} doesn't exist")
+        if filepath.suffix != ".json" or not filepath.is_file():
+            raise ValueError(f"Path {path} doesn't point to .json file")
+
+        with open(filepath, 'r', encoding="utf-8") as f:
+            raw_data: dict[str, dict[str, dict[str, int | dict[str, list[int]]]]] = json.load(f)
+
+        Board_info.__validate_config(raw_data)
+        return raw_data
+
+    @staticmethod
+    def __validate_config(parsed_json: dict):
+        """Tests a given config"""
+
+        wrong_note = """
+        Make sure that config file is formatted as json dict:
+        "board_info" : {
+                "some_board_address" : {
+                    "conet" : conet_num,
+                    "link" : link_num
+                    "channels_by_layer" : {
+                        "*layer_num*" : [*ch_nums*]
+                    },
+                    "aliases" : [...],
+                }
+            },
+        "default_voltages" : {
+            ...
+        }
+        """
+        try:
+            if not isinstance(parsed_json, dict):
+                raise ValueError("Wrong parsed config type (must be dict)")
+            if 'board_info' not in parsed_json:
+                raise ValueError("board_info field is not found")
+            if "default_voltages" not in parsed_json:
+                raise ValueError("default_voltages field is not found")
+            need_fields = set(["conet", "link", "channels_by_layer", "aliases"])
+            if not all(
+                need_fields == set(v.keys()) for v in parsed_json["board_info"].values()
+            ):
+                raise ValueError("Wrong set of fields for the specific board")
+
+        except Exception as e:
+            e.add_note(wrong_note)
+            raise
+        return
+
     @classmethod
     def from_json(cls, path: str):
-        filepath = pathlib.Path(path)
-        if not filepath.exists():
-            raise ValueError("Path %s doesn't exist.", path)
+        """Creates an instance of Board_info from JSON config file"""
 
-        if filepath.suffix != ".json" or not filepath.is_file():
-            raise ValueError("Path %s doesn't point to .json file.", path)
-        
-        with open(filepath, 'r') as f:
-            raw_data: dict[str, dict[str, dict[str, int | dict[str, list[int]]]]] = json.load(f)
-            
-        if (
-            type(raw_data) is not dict or 
-            "board_info" not in raw_data.keys() or
-            not all([set(['conet', 'link', 'channels_by_layer']).issubset(info.keys()) for _, info in raw_data['board_info'].items()])
-        ):
-            e = ValueError("Config file is wrong.")
-            e.add_note("""Make sure that config file is formatted as json dict:
-                        "board_info" : {
-                                "some_board_address" : {
-                                    "conet" : conet_num,
-                                    "link" : link_num
-                                    "channels_by_layer" : {
-                                        "*layer_num*" : [*ch_nums*]
-                                    }
-                                }
-                            }""")
-            raise e
-        data = raw_data['board_info']
-        
-        def get_channels(channels_by_layer: dict[str, list[int]])->list[_Channel_LayerPair]:
+        raw_data = Board_info.__open_config(path)
+        data = raw_data["board_info"]
+
+        def get_channels(one_board_info: dict) -> list[_Channel_LayerPair]:
             channels = []
-            for layer, chs in channels_by_layer.items():
+            for layer, chs in one_board_info["channels_by_layer"].items():
                 channels.extend(
-                    [_Channel_LayerPair(channel=ch, layer=int(layer)) for ch in chs]
+                    [
+                        _Channel_LayerPair(
+                            channel=ch,
+                            layer=int(layer),
+                            alias=one_board_info["aliases"][ch],
+                        )
+                        for ch in chs
+                    ]
                 )
             return channels
 
-        res = [
-            cls(board_address=b_address, conet=info["conet"], link=info["link"], handler=None, channels=get_channels(info["channels_by_layer"]))  # type: ignore
-            for b_address, info in data.items()
-        ]
+        res = []
+        for b_address, info in data.items():
+            res.append(
+                cls(
+                    board_address=b_address,
+                    conet=info["conet"],
+                    link=info["link"],
+                    handler=None,
+                    channels=get_channels(info),
+                )
+            )
         return res
 
 
 @dataclass
 class Channel_info:
+    """Defines a board channel structure"""
+
     board_info: Board_info
     channel_num: int
     layer: int | None = None
-    par_names: ClassVar[tuple[str, ...]] = ('VSet', 'ISet', 'VMon', 'IMonH', 'Pw', 'ChStatus', 'Trip', 'SVMax', 'RDWn', 'RUp', 'PDwn', 'Polarity', 'Temp', 'ImonRange', 'IMonL')
-    
+    alias: str | None = None
+    par_names: ClassVar[tuple[str, ...]] = (
+        "VSet",
+        "ISet",
+        "VMon",
+        "IMonH",
+        "Pw",
+        "ChStatus",
+        "Trip",
+        "SVMax",
+        "RDWn",
+        "RUp",
+        "PDwn",
+        "Polarity",
+        "Temp",
+        "ImonRange",
+        "IMonL",
+    )
+
     @classmethod
     def from_db_object(cls, channel: Channel, board: Board) -> "Channel_info":
         ch_info = cls(
             board_info=Board_info.from_db_object(board),
             channel_num=channel.channel,
             layer=channel.layer,
+            alias=channel.alias,
         )
         return ch_info
 
     @property
-    def json(self):
+    def dict(self):
         res_dict = {
             "channel_num": self.channel_num,
             "layer": self.layer,
             "par_names": self.par_names,
+            "alias": self.alias,
             "board_info": self.board_info.to_dict(),
         }
-        return json.dumps(res_dict)
+        return res_dict
 
 
 class Handler:
@@ -140,7 +223,7 @@ class Handler:
 
     def __init__(self, config_path: str, refresh_time: int = 10, fake_board: bool = True):
         self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.db_manager = SetupDB_manager("sqlite:///temp_handler_db.sqlite")
+        self.db_manager = SetupDB_manager("sqlite://") # use in-memory database (to speed up)
         boards = Board_info.from_json(config_path)
 
         if fake_board:
@@ -160,9 +243,17 @@ class Handler:
         chs = self.__get_channels()
         if chs is not None:
             for ch in chs:
-                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-                self.__set_parameters(channel_info, [('ImonRange', 0), ('Trip', 0.2), ('RUp', 10), ('RDWn', 100), ('PDwn', 1)])
-        
+                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"]) # type:ignore
+                self.__set_parameters(
+                    channel_info,
+                    [
+                        ("ImonRange", 0),
+                        ("Trip", 0.2),
+                        ("RUp", 10),
+                        ("RDWn", 100),
+                        ("PDwn", 1),
+                    ],
+                )
 
     def __del__(self) -> None:
         self.__deinitialize_boards()
@@ -227,6 +318,7 @@ class Handler:
                 Channel(
                     channel=ch.channel,
                     layer=ch.layer,
+                    alias=ch.alias,
                     board_address=board_info.board_address,
                 )
                 for ch in board_info.channels
@@ -279,7 +371,7 @@ class Handler:
         """
         with self.db_manager.get_session() as session:
             boards = session.execute(select(Board)).all()
-            bs = [Board_info.from_db_object(b.tuple()[-1]) for b in boards]
+            bs = [Board_info.from_db_object(b._tuple()[-1]) for b in boards]
         return bs
 
     def __get_board_handler(self, board: Board_info) -> int | None:
@@ -440,11 +532,11 @@ class Handler:
         except:
             return False
         return True
-    
+
     def set_voltage(self, layer: int | None = None, voltage_multiplier: float = 0., default_speed: int = 20)->None:
         if voltage_multiplier < 0 or voltage_multiplier > 1.5:
             raise ValueError("Voltage is either less than zero or bigger than 3000 V <=> voltage_multiplier > 1.5.")
-        
+
         if layer is None:
             channels = self.__get_channels()
         else:
@@ -458,11 +550,11 @@ class Handler:
             ch_info_list.append(channel_info)     
             def_volt = self.__default_voltages.get(str(channel_info.layer), 0.0)
             voltage = def_volt * voltage_multiplier
- 
+
             rup_speed = round(default_speed * def_volt / self.__max_default_voltage) if layer != '-1' else default_speed
-            print(str(channel_info.layer), def_volt, voltage_multiplier, rup_speed)
+            # print(str(channel_info.layer), def_volt, voltage_multiplier, rup_speed)
             self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', rup_speed), ('RDown', rup_speed)])              
-        
+
         self.pw_up(layer=layer)
 
     def pw_down(self, layer: int | None = None) -> None:
@@ -521,7 +613,14 @@ class Handler:
                 return None
             return {name: val for name, val in results.items() if name in params}
 
-        res: dict[str, dict | None] = {
-            ch.json: select_requested(requested_params, ch) for ch in channels
-        }
+        res = [
+            {
+                "channel": {
+                    key: ch.dict[key]
+                    for key in ["alias", "channel_num", "layer", "board_info"]
+                },
+                "params": select_requested(requested_params, ch),
+            }
+            for ch in channels
+        ]
         return res
