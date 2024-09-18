@@ -97,7 +97,7 @@ class GetParams_Ticket(Ticket):
     def execute(self, handler: Handler) -> str:
 
         try:
-            ch_params = handler.get_params(None, params=set(self.sel_params))
+            ch_params = handler.get_params(None, params=self.sel_params)
             return json.dumps({"status": True, "body": {"params": ch_params}})
         except Exception as e:
             return json.dumps({"status": False, "body": {"error": str(e)}})

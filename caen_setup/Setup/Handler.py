@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import ClassVar
 from dataclasses import dataclass
@@ -590,11 +591,11 @@ class Handler:
         list(map(self.__update_parameters, ch_info_list))
 
     def get_params(
-        self, layer: int | None = None, params: set[str] | None = None
+        self, layer: int | None = None, params: Iterable | None = None
     ) -> dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)
         if params is not None:
-            requested_params: set[str] = params.intersection(Channel_info.par_names)
+            requested_params: set[str] = set(params).intersection(Channel_info.par_names)
 
         query = select(Channel, Board).join(Board)
         if layer is not None:
