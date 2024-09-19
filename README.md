@@ -6,3 +6,13 @@ Build python package in [developing mode](https://setuptools.pypa.io/en/latest/u
 ```bash
 pip install -e .
 ```
+
+## Launch tests
+Install `pytest` package via pip like
+```bash
+pip install pytest
+```
+Run tests with command
+```bash
+pytest
+```
