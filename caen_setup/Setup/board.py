@@ -30,7 +30,20 @@ class FakeBoard:
         for ch in channels:
             res_dict[ch] = {p: 0 for p in parameters}
             if "VMon" in parameters:
-                res_dict[ch]["VMon"] = FakeBoard.board_state.get("VMon", {}).get(handler, {}).get(ch, 0)
+                res_dict[ch]["VMon"] = int(
+                    FakeBoard.board_state.get("VMon", {}).get(handler, {}).get(ch, 0)
+                    * random.gauss(1, 0.02)
+                )
+            if "IMonH" in parameters:
+                res_dict[ch]["IMonH"] = int(
+                    (
+                        FakeBoard.board_state.get("VMon", {})
+                        .get(handler, {})
+                        .get(ch, 0)
+                        / 100
+                    )
+                    * random.gauss(1, 0.01)
+                )
         return res_dict
 
     @staticmethod
