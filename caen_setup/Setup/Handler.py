@@ -105,7 +105,11 @@ class Board_info:
             },
         "default_voltages" : {
             ...
-        }
+        },
+        "default_max_current" : {
+            ...
+        },
+        "ramp_up_max_current_multiplier" : ...
         """
         try:
             if not isinstance(parsed_json, dict):
@@ -114,6 +118,10 @@ class Board_info:
                 raise ValueError("board_info field is not found")
             if "default_voltages" not in parsed_json:
                 raise ValueError("default_voltages field is not found")
+            if "default_max_current" not in parsed_json:
+                raise ValueError("default_max_current field is not found")
+            if "ramp_up_max_current_multiplier" not in parsed_json:
+                raise ValueError("ramp_up_max_current_multiplier field is not found")
             need_fields = set(["conet", "link", "channels_by_layer", "aliases"])
             if not all(
                 need_fields == set(v.keys()) for v in parsed_json["board_info"].values()
@@ -236,6 +244,8 @@ class Handler:
 
         with open(config_path, encoding="utf-8") as f:
             self.__default_voltages: dict[str, int] = json.load(f)['default_voltages']
+            self.__default_max_current: dict[str, int] = json.load(f)['default_max_current']
+            self.__ramp_up_max_current_multiplier: dict[str, int] = json.load(f)['ramp_up_max_current_multiplier']
         self.__max_default_voltage = max(self.__default_voltages.values())
 
         self.__remove_DB_records()
@@ -245,10 +255,12 @@ class Handler:
         if chs is not None:
             for ch in chs:
                 channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"]) # type:ignore
+                max_current = self.__default_max_current.get(str(channel_info.layer), 0.0)
                 self.__set_parameters(
                     channel_info,
                     [
                         ("ImonRange", 0),
+                        ("ISet", max_current),
                         ("Trip", 0.2),
                         ("RUp", 10),
                         ("RDWn", 100),
@@ -553,7 +565,6 @@ class Handler:
             voltage = def_volt * voltage_multiplier
 
             rup_speed = round(default_speed * def_volt / self.__max_default_voltage) if layer != '-1' else default_speed
-            # print(str(channel_info.layer), def_volt, voltage_multiplier, rup_speed)
             self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', rup_speed), ('RDown', rup_speed)])              
 
         self.pw_up(layer=layer)
