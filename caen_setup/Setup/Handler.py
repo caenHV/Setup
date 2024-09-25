@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import json
 import pathlib
 
-from numpy import double
 from sqlalchemy import and_, delete, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 

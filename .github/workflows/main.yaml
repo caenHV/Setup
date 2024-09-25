@@ -1,0 +1,19 @@
+name: Build Python package
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' 
+      - name: Run tests
+        shell: bash
+        run: |
+          pip install pytest
+          pip install -e .
+          pytest -v
