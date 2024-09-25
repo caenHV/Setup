@@ -243,9 +243,10 @@ class Handler:
             self.BoardCAEN = BoardCAEN
 
         with open(config_path, encoding="utf-8") as f:
-            self.__default_voltages: dict[str, int] = json.load(f)['default_voltages']
-            self.__default_max_current: dict[str, float] = json.load(f)['default_max_current']
-            self.__ramp_up_max_current_multiplier = json.load(f)['ramp_up_max_current_multiplier']
+            json_file = json.load(f)
+            self.__default_voltages: dict[str, int] = json_file['default_voltages']
+            self.__default_max_current: dict[str, float] = json_file['default_max_current']
+            self.__ramp_up_max_current_multiplier = json_file['ramp_up_max_current_multiplier']
         self.__max_default_voltage = max(self.__default_voltages.values())
 
         self.__remove_DB_records()
