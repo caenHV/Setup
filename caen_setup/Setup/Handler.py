@@ -232,13 +232,16 @@ class Handler:
         fake_board: bool = True,
         ramp_up: int = 10,
         ramp_down: int = 100,
+        is_high_range: bool = True,
     ):
         self.refresh_time = timedelta(seconds=refresh_time)  # seconds
         self.db_manager = SetupDB_manager(
             "sqlite://"
         )  # use in-memory database (to speed up)
         boards = Board_info.from_json(config_path)
-
+        self.__ramp_up = ramp_up
+        self.__ramp_down = ramp_down
+        self.__imon_range = 0 if is_high_range else 1
         if fake_board:
             from caen_setup.Setup.board import FakeBoard
 
@@ -269,7 +272,7 @@ class Handler:
                 self.__set_parameters(
                     channel_info,
                     [
-                        ("ImonRange", 1),
+                        ("ImonRange", self.__imon_range),
                         ("ISet", max_current),
                         ("Trip", 0.2),
                         ("RUp", ramp_up),
@@ -559,10 +562,7 @@ class Handler:
         return True
 
     def set_voltage(
-        self,
-        layer: int | None = None,
-        voltage_multiplier: float = 0.0,
-        default_speed: int = 20,
+        self, layer: int | None = None, voltage_multiplier: float = 0.0
     ) -> None:
         if voltage_multiplier < 0 or voltage_multiplier > 1.2:
             raise ValueError(
@@ -583,14 +583,14 @@ class Handler:
             def_volt = self.__default_voltages.get(str(channel_info.layer), 0.0)
             voltage = def_volt * voltage_multiplier
 
-            rup_speed = (
-                round(default_speed * def_volt / self.__max_default_voltage)
-                if layer != "-1"
-                else default_speed
+            layer_speed_mod = (
+                round(def_volt / self.__max_default_voltage) if layer != "-1" else 1
             )
+            ramp_up = self.__ramp_up * layer_speed_mod
+            ramp_down = self.__ramp_down * layer_speed_mod
             self.__set_parameters(
                 channel_info,
-                [("VSet", voltage), ("RUp", rup_speed), ("RDown", rup_speed)],
+                [("VSet", voltage), ("RUp", ramp_up), ("RDown", ramp_down)],
             )
 
         self.pw_up(layer=layer)

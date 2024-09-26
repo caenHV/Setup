@@ -57,9 +57,9 @@ class SetVoltage_Ticket(Ticket):
             )
         self.__target = float(params["target_voltage"])
 
-    def execute(self, handler: Handler, Ramp_Up_Down_speed: int = 10) -> str:
+    def execute(self, handler: Handler) -> str:
         try:
-            handler.set_voltage(None, self.__target, Ramp_Up_Down_speed)
+            handler.set_voltage(None, self.__target)
 
             return json.dumps({"status": True, "body": {}})
         except Exception as e:
