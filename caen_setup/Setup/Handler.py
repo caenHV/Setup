@@ -14,6 +14,7 @@ from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
 @dataclass
 class _Channel_LayerPair:
     """Defines a channel mappings"""
+
     channel: int
     alias: str
     layer: int | None = None
@@ -35,12 +36,7 @@ class Board_info:
         return (self.board_address, self.conet, self.link, self.handler)
 
     def to_dict(self):
-        res = {
-            self.board_address : {
-                "conet" : self.conet,
-                "link" : self.link
-            }
-        }
+        res = {self.board_address: {"conet": self.conet, "link": self.link}}
         return res
 
     @classmethod
@@ -62,7 +58,7 @@ class Board_info:
     @staticmethod
     def __open_config(path: str) -> dict:
         """Opens a given config and provides some test of it
-        
+
         Parameters
         ----------
         path : str
@@ -71,7 +67,7 @@ class Board_info:
         Returns
         -------
         dict
-            parsed config        
+            parsed config
         """
 
         filepath = pathlib.Path(path)
@@ -81,8 +77,10 @@ class Board_info:
         if filepath.suffix != ".json" or not filepath.is_file():
             raise ValueError(f"Path {path} doesn't point to .json file")
 
-        with open(filepath, 'r', encoding="utf-8") as f:
-            raw_data: dict[str, dict[str, dict[str, int | dict[str, list[int]]]]] = json.load(f)
+        with open(filepath, "r", encoding="utf-8") as f:
+            raw_data: dict[str, dict[str, dict[str, int | dict[str, list[int]]]]] = (
+                json.load(f)
+            )
 
         Board_info.__validate_config(raw_data)
         return raw_data
@@ -108,20 +106,17 @@ class Board_info:
         },
         "default_max_current" : {
             ...
-        },
-        "ramp_up_max_current_multiplier" : ...
+        }
         """
         try:
             if not isinstance(parsed_json, dict):
                 raise ValueError("Wrong parsed config type (must be dict)")
-            if 'board_info' not in parsed_json:
+            if "board_info" not in parsed_json:
                 raise ValueError("board_info field is not found")
             if "default_voltages" not in parsed_json:
                 raise ValueError("default_voltages field is not found")
             if "default_max_current" not in parsed_json:
                 raise ValueError("default_max_current field is not found")
-            if "ramp_up_max_current_multiplier" not in parsed_json:
-                raise ValueError("ramp_up_max_current_multiplier field is not found")
             need_fields = set(["conet", "link", "channels_by_layer", "aliases"])
             if not all(
                 need_fields == set(v.keys()) for v in parsed_json["board_info"].values()
@@ -230,23 +225,35 @@ class Handler:
         use fake board interface (for development purposes)
     """
 
-    def __init__(self, config_path: str, refresh_time: int = 10, fake_board: bool = True):
-        self.refresh_time = timedelta(seconds=refresh_time) # seconds
-        self.db_manager = SetupDB_manager("sqlite://") # use in-memory database (to speed up)
+    def __init__(
+        self,
+        config_path: str,
+        refresh_time: int = 10,
+        fake_board: bool = True,
+        ramp_up: int = 10,
+        ramp_down: int = 100,
+    ):
+        self.refresh_time = timedelta(seconds=refresh_time)  # seconds
+        self.db_manager = SetupDB_manager(
+            "sqlite://"
+        )  # use in-memory database (to speed up)
         boards = Board_info.from_json(config_path)
 
         if fake_board:
             from caen_setup.Setup.board import FakeBoard
+
             self.BoardCAEN = FakeBoard
         else:
             from caen_setup.Setup.boardcaen import BoardCAEN
+
             self.BoardCAEN = BoardCAEN
 
         with open(config_path, encoding="utf-8") as f:
             json_file = json.load(f)
-            self.__default_voltages: dict[str, int] = json_file['default_voltages']
-            self.__default_max_current: dict[str, float] = json_file['default_max_current']
-            self.__ramp_up_max_current_multiplier = json_file['ramp_up_max_current_multiplier']
+            self.__default_voltages: dict[str, int] = json_file["default_voltages"]
+            self.__default_max_current: dict[str, float] = json_file[
+                "default_max_current"
+            ]
         self.__max_default_voltage = max(self.__default_voltages.values())
 
         self.__remove_DB_records()
@@ -255,16 +262,18 @@ class Handler:
         chs = self.__get_channels()
         if chs is not None:
             for ch in chs:
-                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"]) # type:ignore
-                max_current = self.__default_max_current.get(str(channel_info.layer), 0.0)
+                channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])
+                max_current = self.__default_max_current.get(
+                    str(channel_info.layer), 0.0
+                )
                 self.__set_parameters(
                     channel_info,
                     [
-                        ("ImonRange", 0),
+                        ("ImonRange", 1),
                         ("ISet", max_current),
                         ("Trip", 0.2),
-                        ("RUp", 10),
-                        ("RDWn", 100),
+                        ("RUp", ramp_up),
+                        ("RDWn", ramp_down),
                         ("PDwn", 1),
                     ],
                 )
@@ -281,7 +290,9 @@ class Handler:
             if board_address not in config_board_addresses:
                 self.__remove_board(board)
                 continue
-            board.handler = self.BoardCAEN.initialize(board_address, conet=conet, link=link)
+            board.handler = self.BoardCAEN.initialize(
+                board_address, conet=conet, link=link
+            )
             self.__reserve_board_channels(board)
             self.__fill_board_handler(board)
 
@@ -547,9 +558,16 @@ class Handler:
             return False
         return True
 
-    def set_voltage(self, layer: int | None = None, voltage_multiplier: float = 0., default_speed: int = 20)->None:
-        if voltage_multiplier < 0 or voltage_multiplier > 1.5:
-            raise ValueError("Voltage is either less than zero or bigger than 3000 V <=> voltage_multiplier > 1.5.")
+    def set_voltage(
+        self,
+        layer: int | None = None,
+        voltage_multiplier: float = 0.0,
+        default_speed: int = 20,
+    ) -> None:
+        if voltage_multiplier < 0 or voltage_multiplier > 1.2:
+            raise ValueError(
+                "Voltage is either less than zero or bigger than 2400 V <=> voltage_multiplier > 1.2."
+            )
 
         if layer is None:
             channels = self.__get_channels()
@@ -561,12 +579,19 @@ class Handler:
         ch_info_list = list()
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
-            ch_info_list.append(channel_info)     
+            ch_info_list.append(channel_info)
             def_volt = self.__default_voltages.get(str(channel_info.layer), 0.0)
             voltage = def_volt * voltage_multiplier
 
-            rup_speed = round(default_speed * def_volt / self.__max_default_voltage) if layer != '-1' else default_speed
-            self.__set_parameters(channel_info, [('VSet', voltage), ('RUp', rup_speed), ('RDown', rup_speed)])              
+            rup_speed = (
+                round(default_speed * def_volt / self.__max_default_voltage)
+                if layer != "-1"
+                else default_speed
+            )
+            self.__set_parameters(
+                channel_info,
+                [("VSet", voltage), ("RUp", rup_speed), ("RDown", rup_speed)],
+            )
 
         self.pw_up(layer=layer)
 
@@ -583,7 +608,9 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             ch_info_list.append(channel_info)
-            self.__set_parameters(channel_info, [('VSet', 0), ('Pw', 0), ('RDown', 100)])
+            self.__set_parameters(
+                channel_info, [("VSet", 0), ("Pw", 0), ("RDown", 100)]
+            )
 
         list(map(self.__update_parameters, ch_info_list))
 
@@ -599,7 +626,7 @@ class Handler:
         for ch in channels:
             channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])  # type: ignore
             ch_info_list.append(channel_info)
-            self.__set_parameters(channel_info, [('Pw', 1)])
+            self.__set_parameters(channel_info, [("Pw", 1)])
         list(map(self.__update_parameters, ch_info_list))
 
     def get_params(
@@ -607,7 +634,9 @@ class Handler:
     ) -> dict[str, dict | None]:
         requested_params: set[str] = set(Channel_info.par_names)
         if params is not None:
-            requested_params: set[str] = set(params).intersection(Channel_info.par_names)
+            requested_params: set[str] = set(params).intersection(
+                Channel_info.par_names
+            )
 
         query = select(Channel, Board).join(Board)
         if layer is not None:

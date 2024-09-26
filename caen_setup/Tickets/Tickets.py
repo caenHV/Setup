@@ -48,44 +48,39 @@ class Down_Ticket(Ticket):
 
 
 class SetVoltage_Ticket(Ticket):
-    params_keys: set[str] = set({'target_voltage'})
+    params_keys: set[str] = set({"target_voltage"})
 
     def __init__(self, params: dict):
         if not self.params_keys.issubset(params.keys()):
-            raise KeyError(f"Passed params dict doesn't contain all required fields ({self.params_keys})")
-        self.__target = float(params['target_voltage'])
+            raise KeyError(
+                f"Passed params dict doesn't contain all required fields ({self.params_keys})"
+            )
+        self.__target = float(params["target_voltage"])
 
-    def execute(self, handler: Handler) -> str:
-        try:                
-            Ramp_Up_Down_speed: int = 10
+    def execute(self, handler: Handler, Ramp_Up_Down_speed: int = 10) -> str:
+        try:
             handler.set_voltage(None, self.__target, Ramp_Up_Down_speed)
 
-            return json.dumps({
-                "status": True,
-                "body" : {}
-            })
+            return json.dumps({"status": True, "body": {}})
         except Exception as e:
-            return json.dumps({
-                "status": False,
-                "body" : {
-                    "error" : str(e) 
-                }
-            })
+            return json.dumps({"status": False, "body": {"error": str(e)}})
 
     @staticmethod
-    def type_description()->Ticket_Type_info:
+    def type_description() -> Ticket_Type_info:
         return Ticket_Type_info(
-            name='SetVoltage', 
-            params={'target_voltage' : {
-                'min_value' : 0, 
-                'max_value' : 1.2,
-                'description' : 'Voltage multiplier to be set.'
-            }
-        })
+            name="SetVoltage",
+            params={
+                "target_voltage": {
+                    "min_value": 0,
+                    "max_value": 1.2,
+                    "description": "Voltage multiplier to be set.",
+                }
+            },
+        )
 
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='SetVoltage', params={'target_voltage' : self.__target})
+        return Ticket_info(name="SetVoltage", params={"target_voltage": self.__target})
 
 
 class GetParams_Ticket(Ticket):
@@ -108,4 +103,4 @@ class GetParams_Ticket(Ticket):
 
     @property
     def description(self) -> Ticket_info:
-        return Ticket_info(name='GetParams', params={})
+        return Ticket_info(name="GetParams", params={})
