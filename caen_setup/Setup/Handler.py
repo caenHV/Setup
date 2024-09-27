@@ -306,7 +306,7 @@ class Handler:
     def __deinitialize_boards(self) -> None:
         """Deinits working boards"""
         boards = self.__get_boards()
-        self.set_voltage(None, 0, 100)
+        self.set_voltage(None, 0)
         self.pw_down(None)
         for board in boards:
             if board.handler is not None:
@@ -632,11 +632,9 @@ class Handler:
     def get_params(
         self, layer: int | None = None, params: Iterable | None = None
     ) -> dict[str, dict | None]:
-        requested_params: set[str] = set(Channel_info.par_names)
+        requested_params: set[str] = set(Channel_info.par_names) | set(["VDef"])
         if params is not None:
-            requested_params: set[str] = set(params).intersection(
-                Channel_info.par_names
-            )
+            requested_params: set[str] = set(params).intersection(requested_params)
 
         query = select(Channel, Board).join(Board)
         if layer is not None:
@@ -651,9 +649,16 @@ class Handler:
 
         def select_requested(params: set[str], ch: Channel_info) -> dict | None:
             results = self.__get_parameters(ch)
+
             if results is None:
                 return None
-            return {name: val for name, val in results.items() if name in params}
+            result_dict = {name: val for name, val in results.items() if name in params}
+
+            if "VDef" in params:
+                default_voltage = self.__default_voltages.get(str(ch.layer), 0.0)
+                result_dict.update({"VDef": default_voltage})
+
+            return result_dict
 
         res = [
             {

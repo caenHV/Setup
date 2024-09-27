@@ -25,7 +25,7 @@ def test_setvoltage(handler):
 
 
 def test_getparams(handler):
-    selected_params = ["VMon", "IMonH"]
+    selected_params = ["VMon", "IMonH", "VSet", "VDef"]
     get_pars = GetParams_Ticket({"select_params": selected_params})
     result = json.loads(get_pars.execute(handler))
     assert result["status"] == True
