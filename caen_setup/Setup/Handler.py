@@ -267,7 +267,7 @@ class Handler:
             for ch in chs:
                 channel_info = Channel_info.from_db_object(ch["Channel"], ch["Board"])
                 max_current = self.__default_max_current.get(
-                    str(channel_info.layer), 0.0
+                    str(channel_info.layer), 50.0
                 )
                 self.__set_parameters(
                     channel_info,
