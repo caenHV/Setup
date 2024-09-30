@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple
 
 
 class FakeBoard:
-    board_state = {"VMon": {}}
+    board_state = {"VSet": {}}
 
     @staticmethod
     def initialize(address: str, conet: int, link: int) -> int:
@@ -31,18 +31,22 @@ class FakeBoard:
             res_dict[ch] = {p: 0 for p in parameters}
             if "VMon" in parameters:
                 res_dict[ch]["VMon"] = int(
-                    FakeBoard.board_state.get("VMon", {}).get(handler, {}).get(ch, 0)
+                    FakeBoard.board_state.get("VSet", {}).get(handler, {}).get(ch, 0)
                     * random.gauss(1, 0.02)
                 )
             if "IMonH" in parameters:
                 res_dict[ch]["IMonH"] = int(
                     (
-                        FakeBoard.board_state.get("VMon", {})
+                        FakeBoard.board_state.get("VSet", {})
                         .get(handler, {})
                         .get(ch, 0)
                         / 100
                     )
                     * random.gauss(1, 0.01)
+                )
+            if "VSet" in parameters:
+                res_dict[ch]["VSet"] = (
+                    FakeBoard.board_state.get("VSet", {}).get(handler, {}).get(ch, 0)
                 )
         return res_dict
 
@@ -53,7 +57,7 @@ class FakeBoard:
         for pname, pval in parameters:
             if pname == "VSet":
                 for ch in channels:
-                    if handler not in FakeBoard.board_state["VMon"]:
-                        FakeBoard.board_state["VMon"][handler] = {}
-                    FakeBoard.board_state["VMon"][handler].update({ch: pval})
+                    if handler not in FakeBoard.board_state["VSet"]:
+                        FakeBoard.board_state["VSet"][handler] = {}
+                    FakeBoard.board_state["VSet"][handler].update({ch: pval})
         return
