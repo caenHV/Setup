@@ -584,7 +584,9 @@ class Handler:
             voltage = def_volt * voltage_multiplier
 
             layer_speed_mod = (
-                round(def_volt / self.__max_default_voltage) if layer != "-1" else 1
+                round(def_volt / self.__max_default_voltage)
+                if str(channel_info.layer) != "-1"
+                else 1
             )
             ramp_up = self.__ramp_up * layer_speed_mod
             ramp_down = self.__ramp_down * layer_speed_mod
