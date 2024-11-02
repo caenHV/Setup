@@ -35,15 +35,9 @@ class FakeBoard:
                     * random.gauss(1, 0.02)
                 )
             if "IMonH" in parameters:
-                res_dict[ch]["IMonH"] = int(
-                    (
-                        FakeBoard.board_state.get("VSet", {})
-                        .get(handler, {})
-                        .get(ch, 0)
-                        / 100
-                    )
-                    * random.gauss(1, 0.01)
-                )
+                res_dict[ch]["IMonH"] = random.expovariate(0.7)
+            if "IMonL" in parameters:
+                res_dict[ch]["IMonL"] = random.expovariate(0.7)
             if "VSet" in parameters:
                 res_dict[ch]["VSet"] = (
                     FakeBoard.board_state.get("VSet", {}).get(handler, {}).get(ch, 0)
