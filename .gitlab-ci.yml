@@ -1,0 +1,39 @@
+stages:
+  - build
+  - test
+
+badge-doc-cover:
+  stage: build
+  image: python:3.11-alpine
+  before_script:
+    - echo "Install python dependencies"
+    - pip install anybadge interrogate==1.7.0
+  script:
+    - ls
+    - interrogate -m -n -p -vv caen_setup -f 0 -o out.txt
+    - cat out.txt
+    - covlevel=$(tail -n 1 out.txt | cut -d " " -f7 | cut -d "%" -f1)
+    - anybadge -l "Docs coverage" -v "$covlevel" --suffix='%' -f docs_cover.svg 50=red 60=orange 80=yellow 100=green
+  artifacts:
+    paths:
+      - docs_cover.svg
+    when: always
+    expire_in: 4 weeks
+
+build-job:
+  stage: build
+  image: python:3.11-alpine
+  script:
+  - |
+    python3 -m pip install --upgrade build
+    python3 -m build
+
+test-job:
+  stage: test
+  image: python:3.11-alpine
+  script:
+  - |
+    pip install pytest
+    pip install -e .
+    pytest -v
+
