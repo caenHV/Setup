@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - deploy
 
 badge-doc-cover:
   stage: build
@@ -10,15 +11,16 @@ badge-doc-cover:
     - pip install anybadge interrogate==1.7.0
   script:
     - ls
-    - interrogate -m -n -p -vv caen_setup -f 0 -o out.txt
-    - cat out.txt
-    - covlevel=$(tail -n 1 out.txt | cut -d " " -f7 | cut -d "%" -f1)
-    - anybadge -l "Docs coverage" -v "$covlevel" --suffix='%' -f docs_cover.svg 50=red 60=orange 80=yellow 100=green
+    - interrogate -m -n -p -vv caen_setup -f 0 -o docs_coverage.txt
+    - cat docs_coverage.txt
+    - covlevel=$(tail -n 1 docs_coverage.txt | cut -d " " -f7 | cut -d "%" -f1)
+    - anybadge -l "Docs coverage" -v "$covlevel" --suffix='%' -f docs_coverage.svg 50=red 60=orange 80=yellow 100=green
   artifacts:
     paths:
-      - docs_cover.svg
+      - docs_coverage.svg
+      - docs_coverage.txt
     when: always
-    expire_in: 4 weeks
+    expire_in: never
 
 build-job:
   stage: build
@@ -27,6 +29,10 @@ build-job:
   - |
     python3 -m pip install --upgrade build
     python3 -m build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
 
 test-job:
   stage: test
@@ -36,4 +42,18 @@ test-job:
     pip install pytest
     pip install -e .
     pytest -v
+
+publish-package:
+  stage: deploy
+  image: python:3.11-alpine
+  rules:
+    - when: manual
+      allow_failure: true
+  needs:
+    - job: build-job
+      artifacts: true
+  script:
+    - echo "Publish package in gitlab package registry"
+    - pip install twine
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
