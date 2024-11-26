@@ -1,6 +1,6 @@
 [project]
 name="caen-setup"
-version="1.2.4"
+version="1.2.4-alpha1"
 dependencies = [
     "SQLAlchemy==2.0.20",
     "pycaenhv @ https://github.com/caenHV/pycaenhv/archive/538414a1babc82a381a6f0e11766ce402f9897b4.zip"
