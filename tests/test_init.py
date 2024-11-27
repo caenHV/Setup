@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from caen_setup import Handler
-from caen_setup.Tickets.Tickets import Down_Ticket, SetVoltage_Ticket, GetParams_Ticket
+from caen_setup.tickets.Tickets import Down_Ticket, SetVoltage_Ticket, GetParams_Ticket
 
 
 @pytest.fixture

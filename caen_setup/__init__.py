@@ -1,2 +1,2 @@
-from caen_setup.Setup.Handler import Handler
-from caen_setup.Tickets.TicketType import TicketType
+from caen_setup.setup.handler import Handler
+from caen_setup.tickets.TicketType import TicketType

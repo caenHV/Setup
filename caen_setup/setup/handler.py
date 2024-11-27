@@ -1,3 +1,18 @@
+"""
+This module contains the Handler class, which is responsible 
+for managing the state and operations of the CAEN system 
+(a lot of boards). The Handler class provides methods to initialize
+and deinitialize boards, set voltages, power channels up or down, 
+and retrieve channel parameters.
+
+Usage
+-----
+To use the Handler class, create an instance by providing the necessary configuration
+path and optional parameters. The instance can then be used to interact with the
+CAEN board, including setting voltages, powering channels, and retrieving channel
+information.
+"""
+
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import ClassVar
@@ -8,12 +23,22 @@ import pathlib
 from sqlalchemy import and_, delete, select, update
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, IntegrityError
 
-from caen_setup.Setup.SetupDB import Channel, Board, SetupDB_manager
+from caen_setup.setup.SetupDB import Channel, Board, SetupDB_manager
 
 
 @dataclass
 class _Channel_LayerPair:
-    """Defines a channel mappings"""
+    """Defines a channel mappings.
+
+    Parameters
+    ----------
+    channel : int
+        The channel number.
+    alias : str
+        The alias of the channel.
+    layer : int, optional
+        The layer number associated with the channel (default is None).
+    """
 
     channel: int
     alias: str
@@ -22,26 +47,63 @@ class _Channel_LayerPair:
 
 @dataclass
 class Board_info:
-    """Defines a board structure"""
+    """Defines a board structure.
+
+    Attributes
+    ----------
+    board_address : str
+        The address of the board.
+    conet : int
+        The conet number.
+    link : int
+        The link number.
+    handler : int | None, optional
+        The handler number (default is None).
+    channels : list[_Channel_LayerPair] | None, optional
+        A list of channel-layer pairs (default is None).
+    """
 
     board_address: str
     conet: int
     link: int
     handler: int | None = None
     channels: list[_Channel_LayerPair] | None = None
-    """list[Channel_LayerPair[channel_num, channel_layer, alias]]
-    """
 
     def tuple(self) -> tuple[str, int, int, int | None]:
+        """Returns a tuple representation of the board information.
+
+        Returns
+        -------
+        tuple[str, int, int, int | None]
+            A tuple containing the board address, conet, link, and handler.
+        """
         return (self.board_address, self.conet, self.link, self.handler)
 
     def to_dict(self):
+        """Converts the board information to a dictionary.
+
+        Returns
+        -------
+        dict
+            A dictionary representation of the board information.
+        """
         res = {self.board_address: {"conet": self.conet, "link": self.link}}
         return res
 
     @classmethod
     def from_db_object(cls, board: Board) -> "Board_info":
-        """Creates an instance of Board_info from current database"""
+        """Creates an instance of Board_info from a database object.
+
+        Parameters
+        ----------
+        board : Board
+            The board object from which to create the Board_info instance.
+
+        Returns
+        -------
+        Board_info
+            An instance of Board_info populated with data from the board object.
+        """
 
         b_info = cls(
             board_address=board.address,
@@ -57,17 +119,22 @@ class Board_info:
 
     @staticmethod
     def __open_config(path: str) -> dict:
-        """Opens a given config and provides some test of it
+        """Opens a given config and provides some test of it.
 
         Parameters
         ----------
         path : str
-            path to the config file
+            Path to the config file.
 
         Returns
         -------
         dict
-            parsed config
+            Parsed config.
+
+        Raises
+        ------
+        ValueError
+            If the path does not exist or does not point to a .json file.
         """
 
         filepath = pathlib.Path(path)
@@ -87,7 +154,18 @@ class Board_info:
 
     @staticmethod
     def __validate_config(parsed_json: dict):
-        """Tests a given config"""
+        """Tests a given config for validity.
+
+        Parameters
+        ----------
+        parsed_json : dict
+            The parsed JSON configuration to validate.
+
+        Raises
+        ------
+        ValueError
+            If the configuration does not meet the required structure.
+        """
 
         wrong_note = """
         Make sure that config file is formatted as json dict:
@@ -130,7 +208,27 @@ class Board_info:
 
     @classmethod
     def from_json(cls, path: str):
-        """Creates an instance of Board_info from JSON config file"""
+        """Creates an instance of Board_info from a JSON config file.
+
+        This method reads a JSON configuration file, validates its contents,
+        and creates a list of Board_info instances based on the data found
+        in the file.
+
+        Parameters
+        ----------
+        path : str
+            The path to the JSON config file.
+
+        Returns
+        -------
+        list[Board_info]
+            A list of Board_info instances created from the JSON data.
+
+        Raises
+        ------
+        ValueError
+            If the JSON file is not valid or does not contain the required fields.
+        """
 
         raw_data = Board_info.__open_config(path)
         data = raw_data["board_info"]
@@ -166,7 +264,24 @@ class Board_info:
 
 @dataclass
 class Channel_info:
-    """Defines a board channel structure"""
+    """Defines a board channel structure.
+
+    Parameters
+    ----------
+    board_info : Board_info
+        Information about the CAEN board associated with the channel.
+    channel_num : int
+        The channel number.
+    layer : int, optional
+        The layer number associated with the channel (default is None).
+    alias : str, optional
+        An alias of the channel (default is None).
+
+    Attributes
+    ----------
+    par_names : tuple of str
+        A tuple containing all parameters of the channel.
+    """
 
     board_info: Board_info
     channel_num: int
@@ -192,6 +307,20 @@ class Channel_info:
 
     @classmethod
     def from_db_object(cls, channel: Channel, board: Board) -> "Channel_info":
+        """Creates a Channel_info instance from a database object.
+
+        Parameters
+        ----------
+        channel : Channel
+            The channel database object.
+        board : Board
+            The board database object.
+
+        Returns
+        -------
+        Channel_info
+            An instance of Channel_info populated with data from the provided objects.
+        """
         ch_info = cls(
             board_info=Board_info.from_db_object(board),
             channel_num=channel.channel,
@@ -201,7 +330,15 @@ class Channel_info:
         return ch_info
 
     @property
-    def dict(self):
+    def dict(self) -> dict:
+        """Returns a dictionary representation of the Channel_info instance.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the channel number, layer,
+            parameter names, alias, and board information.
+        """
         res_dict = {
             "channel_num": self.channel_num,
             "layer": self.layer,
@@ -213,16 +350,23 @@ class Channel_info:
 
 
 class Handler:
-    """A class for dealing with the current state of the CAEN board
+    """A class for dealing with the current state 
+    of the overall CAEN system (a lot of boards).
 
     Parameters
     ----------
-    path: str
-        path to database
-    refresh_time: int
-        the time limit in seconds when database data is considered as fresh
-    fake_board: bool
-        use fake board interface (for development purposes)
+    config_path : str
+        Path to the configuration database.
+    refresh_time : int, optional
+        The time limit in seconds when database data is considered fresh (default is 10 seconds).
+    fake_board : bool, optional
+        Use fake board interface for development purposes (default is True).
+    ramp_up : int, optional
+        The ramp-up voltage speed in voltage/second (default is 10 V/s).
+    ramp_down : int, optional
+        The ramp-down voltage speed in voltage/second (default is 100 V/s).
+    is_high_range : bool, optional
+        Use IMonH field for reading current, if false IMonL. (default is True).
     """
 
     def __init__(
@@ -243,11 +387,11 @@ class Handler:
         self.__ramp_down = ramp_down
         self.__imon_range = 0 if is_high_range else 1
         if fake_board:
-            from caen_setup.Setup.board import FakeBoard
+            from caen_setup.setup.fake_board import FakeBoard
 
             self.BoardCAEN = FakeBoard
         else:
-            from caen_setup.Setup.boardcaen import BoardCAEN
+            from caen_setup.setup.caen_board import BoardCAEN
 
             self.BoardCAEN = BoardCAEN
 
@@ -282,10 +426,24 @@ class Handler:
                 )
 
     def __del__(self) -> None:
+        """Destructor for the Handler class."""
         self.__deinitialize_boards()
 
     def __initialize_boards(self, config: list[Board_info]):
-        """Inits available in DB boards and fills actual information"""
+        """Initializes available boards in the database
+        and fills actual information.
+
+        This method checks the boards present in the database
+        against the provided configuration.
+        It initializes the boards, reserves their channels,
+        and fills the board handler with the necessary information.
+
+        Parameters
+        ----------
+        config : list of Board_info
+            A list of Board_info objects containing
+            the configuration for the boards to be initialized.
+        """
         boards = self.__get_boards()
         config_board_addresses = [b.board_address for b in config]
         for board in boards:
@@ -304,7 +462,14 @@ class Handler:
         self.__remove_none_boards()
 
     def __deinitialize_boards(self) -> None:
-        """Deinits working boards"""
+        """Deinitializes working boards.
+
+        This method deinitializes all currently active boards
+        by setting their voltage to 0,
+        powering them down, and clearing their handlers.
+        It ensures that boards are absolutely turned off
+        when they are no longer in use.
+        """
         boards = self.__get_boards()
         self.set_voltage(None, 0)
         self.pw_down(None)
@@ -317,7 +482,27 @@ class Handler:
         return
 
     def __add_board(self, info: Board_info) -> int:
-        """Adds a board in the database and inits it"""
+        """Adds a board to the database and initializes it.
+
+        This method checks if the board already exists in the database.
+        If it does not, it initializes the board and reserves its channels.
+        The handler for the board is set up for further operations.
+
+        Parameters
+        ----------
+        info : Board_info
+            The Board_info object containing the information of the board to be added.
+
+        Returns
+        -------
+        int
+            The handler associated with the newly added board.
+
+        Raises
+        ------
+        ValueError
+            If the board already exists in the database.
+        """
         if self.__get_board_handler(info) is not None:
             raise ValueError("This board already exists.")
 
@@ -329,7 +514,31 @@ class Handler:
         return info.handler
 
     def __reserve_board_channels(self, board_info: Board_info) -> bool:
-        """Reserves rows for all channels in the board's config"""
+        """Reserves rows for all channels in the board's configuration.
+
+        This method drops all existing channel entries
+        associated with the specified board address
+        and reserves new rows for all channels defined
+        in the board's configuration. It ensures that
+        the database reflects the current state
+        of the board's channels.
+
+        Parameters
+        ----------
+        board_info : Board_info
+            The Board_info object containing the configuration
+            of the board, including its channels.
+
+        Returns
+        -------
+        bool
+            Returns True if the channels were successfully reserved.
+
+        Raises
+        ------
+        ValueError
+            If the board_info does not store information about channels.
+        """
         with self.db_manager.get_session() as session:
             # Drop all channels.
             drop_stmt = delete(Channel).where(
@@ -361,7 +570,27 @@ class Handler:
         return True
 
     def __fill_board_handler(self, board: Board_info) -> None:
-        """Fills handler for the board"""
+        """Fills the handler for the specified board.
+
+        This method updates the database with the current
+        handler information for the given board.
+        It first attempts to merge the board's information
+        into the database and then updates the
+        handler details if necessary.
+
+        Parameters
+        ----------
+        board : Board_info
+            The Board_info object containing the information
+            of the board to be updated, including
+            its address, conet, link, and handler.
+
+        Raises
+        ------
+        IntegrityError
+            If there is a violation of database integrity constraints
+            during the merge or update operations.
+        """
         with self.db_manager.get_session() as session:
             try:
                 session.merge(
@@ -391,11 +620,16 @@ class Handler:
             session.commit()
 
     def __get_boards(self) -> list[Board_info]:
-        """Returns a list of available boards
+        """Returns a list of available boards.
+
+        This method retrieves all boards from the database
+        and converts them into a list of Board_info objects.
 
         Returns
         -------
-        List[Board_info]
+        list of Board_info
+            A list containing Board_info objects representing
+            the available boards in the database.
         """
         with self.db_manager.get_session() as session:
             boards = session.execute(select(Board)).all()
@@ -403,11 +637,23 @@ class Handler:
         return bs
 
     def __get_board_handler(self, board: Board_info) -> int | None:
-        """Returns handler corresponding to the board
+        """Returns the handler corresponding to the specified board.
+
+        This method queries the database for the handler
+        associated with the given board's address,
+        conet, and link. If no handler is found or
+        if multiple results are found, it returns None.
+
+        Parameters
+        ----------
+        board : Board_info
+            The Board_info object containing the information
+            of the board for which the handler is requested.
+
         Returns
         -------
         int | None
-            handler
+            The handler associated with the board if found; otherwise, None.
         """
         stmt = select(Board.handler).where(
             and_(
@@ -419,7 +665,7 @@ class Handler:
         with self.db_manager.get_session() as session:
             try:
                 handler = session.execute(stmt).one()
-            except (MultipleResultsFound, NoResultFound) as e:
+            except (MultipleResultsFound, NoResultFound):
                 return None
         return handler.tuple()[-1]
 
@@ -427,13 +673,23 @@ class Handler:
         self, channel: Channel_info | None = None
     ) -> list[dict[str, Channel | Board]] | None:
         """Returns a list of available channels in the corresponding board.
-        If board_info is None returns a list of all available channels.
+
+        If a specific channel is provided, it returns information about that channel.
+        If no channel is specified, it returns a list of all available channels.
+
+        Parameters
+        ----------
+        channel : Channel_info, optional
+            The Channel_info object for which to retrieve channel information.
+            If None, retrieves all available channels.
 
         Returns
         -------
-        list[dict[str, str | int | float]]
-            a list of all available information about channels
-            (board_address, channel, conet, link, handler, last_update, parameters)
+        list[dict[str, Channel | Board]] | None
+            A list of dictionaries containing information about the channels, including
+            board_address, channel, conet, link, handler, last_update, and parameters.
+            Returns None if the specified channel is not found or if there are multiple results
+            for the specified channel.
         """
         stmt = select(Channel, Board).join(Board)
 
@@ -459,11 +715,28 @@ class Handler:
 
             try:
                 query_res = query_res.one()
-            except (MultipleResultsFound, NoResultFound) as e:
+            except (MultipleResultsFound, NoResultFound):
                 return None
             return [query_res._asdict()]
 
     def __get_channel(self, channel: Channel_info) -> dict[str, Channel | Board] | None:
+        """Retrieves information for a specific channel.
+
+        This method calls the __get_channels method to fetch channel information.
+        If the channel is found, it returns the corresponding data; otherwise, it returns None.
+
+        Parameters
+        ----------
+        channel : Channel_info
+            The Channel_info object for which to retrieve channel information.
+
+        Returns
+        -------
+        dict[str, Channel | Board] | None
+            A dictionary containing information about the specified channel, including
+            details from both the Channel and Board. Returns None if the channel is not found
+            or if multiple results are returned.
+        """
         data = self.__get_channels(channel)
         if data is None or len(data) != 1:
             return None
@@ -564,6 +837,20 @@ class Handler:
     def set_voltage(
         self, layer: int | None = None, voltage_multiplier: float = 0.0
     ) -> None:
+        """Sets the voltage for the specified layer or for all layers if no layer is specified.
+
+        Parameters
+        ----------
+        layer : int, optional
+            The layer for which to set the voltage. If None, sets the voltage for all layers.
+        voltage_multiplier : float, optional
+            A multiplier to adjust the default voltage. Must be between 0 and 1.2 (default is 0.0).
+
+        Raises
+        ------
+        ValueError
+            If the voltage_multiplier is less than 0 or greater than 1.2.
+        """
         if voltage_multiplier < 0 or voltage_multiplier > 1.2:
             raise ValueError(
                 "Voltage is either less than zero or bigger than 2400 V <=> voltage_multiplier > 1.2."
@@ -598,6 +885,15 @@ class Handler:
         self.pw_up(layer=layer)
 
     def pw_down(self, layer: int | None = None) -> None:
+        """Powers down the specified layer or all layer channels if no layer is specified.
+
+        This method sets the voltage to zero and powers down the channels for the given layer.
+
+        Parameters
+        ----------
+        layer : int, optional
+            The layer to be powered down. If None, powers down all channels.
+        """
         if layer is None:
             channels = self.__get_channels()
         else:
@@ -617,6 +913,15 @@ class Handler:
         list(map(self.__update_parameters, ch_info_list))
 
     def pw_up(self, layer: int | None = None) -> None:
+        """Powers up the specified layer or all layer channels if no layer is specified.
+
+        This method sets the power state to 'on' for the channels in the specified layer.
+
+        Parameters
+        ----------
+        layer : int, optional
+            The layer to be powered up. If None, powers up all layers.
+        """
         if layer is None:
             channels = self.__get_channels()
         else:
@@ -633,7 +938,28 @@ class Handler:
 
     def get_params(
         self, layer: int | None = None, params: Iterable | None = None
-    ) -> dict[str, dict | None]:
+    ) -> list[dict[str, dict | None]]:
+        """Retrieves parameters for channels in the specified layer
+        or all layer channels if no layer is specified.
+
+        Parameters
+        ----------
+        layer : int, optional
+            The layer for which to retrieve parameters.
+            If None, retrieves parameters for all layers.
+        params : Iterable, optional
+            A collection of parameter names to retrieve.
+            If None, retrieves all available parameters.
+
+        Returns
+        -------
+        list[dict[str, dict | None]]
+            A list of dictionaries, each containing channel
+            information and the requested parameters.
+            Each dictionary has a "channel" key with channel
+            details and a "params" key with the requested parameters.
+            Returns None if no parameters are found for a channel.
+        """
         requested_params: set[str] = set(Channel_info.par_names) | set(["VDef"])
         if params is not None:
             requested_params: set[str] = set(params).intersection(requested_params)
